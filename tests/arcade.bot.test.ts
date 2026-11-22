@@ -9,9 +9,11 @@ function bot(game: ArcadeGame): ArcadeInput {
   const b = game.booster;
   const speed = Math.max(0, -b.vy);
   const k = C.verticalDrag;
-  const a = C.burnThrust - C.gravity;
+  const c = game.conditions;
+  const a = c.thrust - c.gravity;
   const stopDistance = speed / k - a / (k * k) * Math.log1p(k * speed / a);
-  const burn = b.y < 3 ? speed > 1.5 : b.y <= stopDistance + 0.9;
+  // Sticky valve: ask for the burn early enough that thrust arrives on time.
+  const burn = b.y < 3 ? speed > 1.5 : b.y <= stopDistance + speed * c.ignitionLag + 0.9;
   let target = game.arms.x;
 
   // Look through the full body's crossing interval, then slide to the nearest
@@ -32,7 +34,7 @@ function bot(game: ArcadeGame): ArcadeInput {
       if (!blocked(x) && cost < best) { target = x; best = cost; }
     }
   }
-  const push = burn ? C.burnSidePush : C.sidePush;
+  const push = (burn ? C.burnSidePush : C.sidePush) * c.sideScale;
   const desired = 2.5 * (target - b.x) - 3 * b.vx - game.wind.base - game.wind.gust;
   return { left: desired < -push * 0.12, right: desired > push * 0.12, burn };
 }

@@ -4,7 +4,6 @@ import type { ArcadeCamera } from '../render/camera';
 import { ARCADE as C } from '../constants';
 
 export type Screen = 'title' | 'playing' | 'paused' | 'help' | 'gameOver';
-export const LEVEL_NAMES = ['Clean drop', 'Crosswind', 'Drones', 'Gust front', 'Bird traffic', 'Moving arms', 'Balloons', 'Low cloud', 'Hot entry', 'Night shift'];
 const number = (n: number) => n.toLocaleString('en-US');
 
 export class ArcadeUI {
@@ -78,7 +77,7 @@ export class ArcadeUI {
     this.mute.setAttribute('aria-pressed', String(muted));
   }
   show(screen: Screen, storage: ArcadeStorage, date: string, game: ArcadeGame, longestStreak = 0, bestCatch = 0, losses: readonly string[] = []): void {
-    this.screen = screen; this.root.dataset.screen = screen;
+    this.screen = screen; this.root.dataset.screen = screen; this.date = date;
     const playing = screen === 'playing';
     this.hud.hidden = screen === 'title' || screen === 'help';
     this.mode.hidden = !playing; this.pause.hidden = !playing;
@@ -89,7 +88,7 @@ export class ArcadeUI {
     if (!playing) { this.popup.hidden = true; this.wind.hidden = true; }
     this.debriefBox.hidden = !playing || !this.debriefBox.dataset.kind;
     this.best.textContent = number(game.daily ? storage.dailyBest(date) : storage.data.bestScore);
-    this.mode.textContent = game.daily ? `Daily · ${date} UTC` : 'Free flight';
+    this.conditions(game);
     if (screen === 'title') {
       this.panel.innerHTML = `<div class="title-card"><p class="site-line"><i></i> Coastal launch control</p>
         <h1>CHOP<span>STICKS</span></h1><p class="tagline">Seventy metres of steel.<br>One soft landing.</p>
@@ -109,8 +108,8 @@ export class ArcadeUI {
         <div class="help-controls"><b>← →</b><span>Slide sideways</span><b>SPACE</b><span>Hold to burn. Fuel is limited.</span></div>
         <p class="touch-help">Touch: hold the left, middle, or right third of the screen. Use two fingers to slide and burn.</p>
         <p><b>Catch:</b> within ${C.catchOffset} m of centre, descending at ${C.catchSpeed} m/s or less.<br><b>Perfect:</b> within ${C.perfectOffset} m, at ${C.perfectSpeed} m/s or less.</p>
-        <p>The drop line turns <b class="ok">green</b> when you’re on glide, <b class="warn">amber</b> when it’s time to burn, <b class="bad">red</b> when you’re too fast. Start burning when the booster reaches the red burn line.</p>
-        <p>Avoid the tower and traffic. Every three catches adds a new challenge.</p><button class="primary" data-action="back">GOT IT <span>↗</span></button></div>`;
+        <p>The drop line turns <b class="ok">green</b> when you’re on glide, <b class="warn">amber</b> when it’s time to burn, <b class="bad">red</b> when you’re too fast. Start burning when the bottom of the booster reaches the red burn line.</p>
+        <p>Avoid the tower and traffic. Every catch is a new level with random twists: wind, traffic, solar flares that black out your instruments, heavy boosters, sticky valves, iced fins and more. Crash and you retry the same level.</p><button class="primary" data-action="back">GOT IT <span>↗</span></button></div>`;
     } else if (screen === 'gameOver') {
       this.panel.innerHTML = `<div class="modal-card results-card"><p class="site-line">${game.daily ? 'Daily challenge · ' + date : 'All boosters expended'}</p>
         <h2>SHIFT OVER.</h2><div class="final-score">${number(game.score)}<small>points</small></div>
@@ -128,6 +127,12 @@ export class ArcadeUI {
     this.popup.dataset.kind = kind; this.popup.hidden = false; this.popupUntil = time + duration;
     this.popup.classList.remove('arrive'); void this.popup.offsetWidth; this.popup.classList.add('arrive');
   }
+  /** Mode and the current level's twists, shown under the score. */
+  conditions(game: ArcadeGame): void {
+    const twists = game.conditions.twists.map(t => t.name);
+    this.mode.textContent = [game.daily ? `Daily · ${this.date} UTC` : 'Free flight', ...(twists.length ? twists : ['Clean drop'])].join(' · ');
+  }
+  private date = '';
   /** Result of the last drop; stays up until the next catch or crash. */
   debrief(kind: 'catch' | 'crash', title: string, detail: string): void {
     this.debriefBox.dataset.kind = kind; this.debriefBox.hidden = this.screen !== 'playing';
@@ -145,7 +150,7 @@ export class ArcadeUI {
   update(game: ArcadeGame, view: ArcadeCamera): void {
     if (this.screen !== 'playing') return;
     if (game.time >= this.popupUntil) this.popup.hidden = true;
-    this.telemetry.hidden = game.state !== 'dropping'; this.alignment.hidden = game.state !== 'dropping';
+    this.telemetry.hidden = game.state !== 'dropping'; this.alignment.hidden = game.state !== 'dropping' || game.flare.active;
     if (game.time - this.updateTime < 1 / 30 && game.time >= this.updateTime) return;
     this.updateTime = game.time;
     if (game.score !== this.lastScore) { this.score.textContent = number(game.score); this.lastScore = game.score; }
@@ -159,9 +164,13 @@ export class ArcadeUI {
     const speed = `${Math.abs(b.vy).toFixed(1)} ${b.vy > 0 ? '↑' : '↓'}`;
     if (speed !== this.lastSpeed) { this.speed.textContent = speed; this.lastSpeed = speed; }
     this.speed.classList.toggle('soft', soft);
-    const { cue } = approach(b.y, b.vy);
+    const c = game.conditions, { cue } = approach(b.y, b.vy, c.thrust, c.gravity);
+    this.root.classList.toggle('flare', game.flare.active);
     const label = b.vy > 0 ? 'EASE OFF' : cue === 'good' ? (soft ? 'SOFT ✓' : 'ON GLIDE') : cue === 'burn' ? (b.burning ? 'BURNING' : 'BURN!') : 'TOO FAST';
-    if (label !== this.lastCue) { this.cue.textContent = label; this.cue.dataset.cue = b.vy > 0 ? 'burn' : cue; this.lastCue = label; }
+    if (game.flare.active) {
+      this.cue.textContent = 'SIGNAL LOST'; this.cue.dataset.cue = 'late'; this.lastCue = '';
+      this.speed.textContent = '▒▒.▒'; this.lastSpeed = '';
+    } else if (label !== this.lastCue) { this.cue.textContent = label; this.cue.dataset.cue = b.vy > 0 ? 'burn' : cue; this.lastCue = label; }
     const fuel = Math.round(b.fuel / b.fuelMax * 100);
     if (fuel !== this.lastFuel) {
       this.fuel.style.transform = `scaleY(${fuel / 100})`;
@@ -171,10 +180,11 @@ export class ArcadeUI {
     this.telemetry.style.transform = `translate(${Math.round(Math.max(8, Math.min(view.width - 100, point.x)))}px,${Math.round(Math.max(90, point.y))}px)`;
     point = view.project(game.arms.x, -7, 5);
     this.alignment.style.transform = `translate(${Math.round(point.x)}px,${Math.round(point.y)}px)`;
-    const aligned = Math.abs(b.x - game.arms.x) <= C.catchOffset;
+    const aligned = Math.abs(b.x - game.arms.x) <= c.catchOffset;
     this.alignment.classList.toggle('aligned', aligned);
     this.alignment.textContent = aligned ? 'ALIGNED' : `${Math.abs(b.x - game.arms.x).toFixed(1)} m ${b.x < game.arms.x ? '→' : '←'}`;
-    this.wind.hidden = !game.wind.warning && !game.wind.gust;
-    if (!this.wind.hidden) this.wind.textContent = `${this.gustDirection > 0 ? '→' : '←'} ${game.wind.warning ? 'GUST INCOMING' : 'CROSSWIND'} ${this.gustDirection > 0 ? '→' : '←'}`;
+    this.wind.hidden = !game.wind.warning && !game.wind.gust && !game.flare.warning && !game.flare.active;
+    if (game.flare.warning || game.flare.active) this.wind.textContent = game.flare.active ? '☀ SOLAR FLARE · INSTRUMENTS DOWN ☀' : '☀ SOLAR FLARE INCOMING ☀';
+    else if (!this.wind.hidden) this.wind.textContent = `${this.gustDirection > 0 ? '→' : '←'} ${game.wind.warning ? 'GUST INCOMING' : 'CROSSWIND'} ${this.gustDirection > 0 ? '→' : '←'}`;
   }
 }

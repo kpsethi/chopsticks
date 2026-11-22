@@ -266,8 +266,10 @@ kbd {
   z-index:2;
   left:28px;
   top:94px;
-  font-size:10px;
-  color:#b9c9da
+  max-width:calc(100vw - 56px);
+  font-size:12px;
+  line-height:1.5;
+  color:#ffcf96
 }
 .booster-icon {
   display:inline-block;
@@ -848,3 +850,14 @@ flight input stays locked. */
   color:#ffb3a6
 }
 .losses li { margin:3px 0 }
+
+#arcade.flare::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  background:repeating-linear-gradient(0deg,#ffd9a00d 0 2px,transparent 2px 4px),radial-gradient(circle at 80% 10%,#ffcf7a40,transparent 60%);
+  animation:flare-flicker .12s steps(2,start) infinite
+}
+@keyframes flare-flicker { to { opacity:.6 } }

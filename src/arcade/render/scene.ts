@@ -40,11 +40,11 @@ export class ArcadeRenderer {
     const warm = new DirectionalLight(0xffb162, 2.5); warm.position.set(-70, -30, 80);
     this.scene.add(moon, warm, new HemisphereLight(0x8ba9db, 0x1a2435, 2), new AmbientLight(0x617590, 0.6));
     this.scene.add(this.tower.group, this.booster.group, this.effects.explosion, this.hazards.group, this.guide, this.burnLine, this.marker);
-    // Brackets span the catch window for the pins' centre.
+    // Brackets span the catch window for the pins' centre; render() moves them per level.
     for (const x of [-C.catchOffset, C.catchOffset]) {
       const mark = new Mesh(new BoxGeometry(0.8, 7, 0.5), this.markerMaterial); mark.position.set(x, 2.5, 5); this.marker.add(mark);
     }
-    const line = new Mesh(new BoxGeometry(C.catchOffset * 2, 0.8, 0.5), this.markerMaterial); line.position.set(0, -1, 5); this.marker.add(line);
+    const line = new Mesh(new BoxGeometry(2, 0.8, 0.5), this.markerMaterial); line.position.set(0, -1, 5); this.marker.add(line);
     this.buildCoast();
     const stars = new Float32Array(260 * 3);
     for (let i = 0; i < stars.length; i += 3) {
@@ -102,15 +102,18 @@ export class ArcadeRenderer {
     this.booster.update(game); this.tower.update(game, dt); this.hazards.update(game);
     this.effects.update(dt, game.time, game.booster.burning || preview);
     const b = game.booster;
-    this.guide.visible = game.state === 'dropping';
+    const c = game.conditions;
+    this.guide.visible = game.state === 'dropping' && !game.flare.active;
     this.guide.position.set(b.x, Math.max(0, b.y) / 2, 2); this.guide.scale.y = Math.max(0.01, b.y);
-    const cue = approach(b.y, b.vy);
+    const cue = approach(b.y, b.vy, c.thrust, c.gravity);
     this.guideMaterial.color.setHex(cue.cue === 'good' ? 0x75f4c5 : cue.cue === 'burn' ? 0xffb347 : 0xff5a45);
-    // The burn line marks where the pins should be when the burn starts; it rides up as speed grows.
+    // Burn when the booster's base touches this line; it rides up as speed grows.
     this.burnLine.visible = this.guide.visible && !b.burning && cue.burnHeight > 2 && cue.burnHeight < b.y;
-    this.burnLine.position.set(b.x, cue.burnHeight, 3);
+    this.burnLine.position.set(b.x, cue.burnHeight - C.belowPins, 3);
     this.marker.position.x = game.arms.x;
-    this.markerMaterial.color.setHex(Math.abs(b.x - game.arms.x) <= C.catchOffset ? 0x75f4c5 : 0xffc171);
+    this.marker.children[0].position.x = -c.catchOffset; this.marker.children[1].position.x = c.catchOffset;
+    this.marker.children[2].scale.x = c.catchOffset;
+    this.markerMaterial.color.setHex(game.flare.active ? 0x56606c : Math.abs(b.x - game.arms.x) <= c.catchOffset ? 0x75f4c5 : 0xffc171);
     this.fog.visible = !!game.fogBand;
     this.streaks.visible = Math.abs(game.wind.base) > 0;
     this.windMaterial.opacity = game.wind.warning ? 0.35 + 0.3 * Math.sin(game.time * 25) : game.wind.gust ? 0.5 : 0.13;

@@ -4,13 +4,13 @@ import { ArcadeControls } from './input';
 import { ArcadeStorage } from './storage';
 import { ArcadeAudio } from './audio';
 import { ArcadeRenderer } from './render/scene';
-import { ArcadeUI, LEVEL_NAMES, type Screen } from './ui/screens';
+import { ArcadeUI, type Screen } from './ui/screens';
 
 const crashMessage = (e: Extract<ArcadeEvent, { type: 'crash' }>) => {
   if (e.reason === 'arms' || e.reason === 'speed') {
     const faults = [];
     if (e.speed > C.catchSpeed) faults.push(`Too fast: ${e.speed.toFixed(1)} m/s (max ${C.catchSpeed})`);
-    if (e.offset > C.catchOffset) faults.push(`${faults.length ? 'and' : 'Off centre:'} ${e.offset.toFixed(1)} m (max ${C.catchOffset})`);
+    if (e.offset > e.maxOffset) faults.push(`${faults.length ? 'and' : 'Off centre:'} ${e.offset.toFixed(1)} m (max ${e.maxOffset})`);
     const tip = e.speed > C.catchSpeed ? 'Start burning at the red line.' : 'Stay between the brackets.';
     return `${faults.join(' ')}. ${tip}`;
   }
@@ -150,8 +150,10 @@ export class ArcadeApp {
         // Only announce new levels so the last crash reason is not covered up.
         if (event.level !== this.announcedLevel) {
           this.announcedLevel = event.level;
-          this.ui.announce(`LEVEL ${event.level}`, LEVEL_NAMES[Math.min(9, event.level - 1)], event.time, 1.1);
+          const twists = this.game.conditions.twists.map(t => t.name);
+          this.ui.announce(`LEVEL ${event.level}`, twists.length ? twists.join(' · ') : 'Clean drop', event.time, 1.8);
         }
+        this.ui.conditions(this.game);
         break;
       case 'catch':
         this.longestStreak = Math.max(this.longestStreak, this.game.streak);

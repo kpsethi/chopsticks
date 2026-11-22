@@ -30,7 +30,7 @@ export const ARCADE = {
   initialLives: 3, // boosters
   maxLives: 5, // boosters
   extraLifeCatches: 10, // catches per extra life
-  catchesPerLevel: 3, // catches
+  catchesPerLevel: 1, // catches; every catch is a new level
   celebrateTime: 1.2, // s
   explodeTime: 2.2, // s
   armCloseTime: 0.15, // s
@@ -41,34 +41,52 @@ export const ARCADE = {
   perfectMultiplier: 2, // dimensionless
   maxMultiplier: 5, // dimensionless
   scoreHistoryLimit: 10, // entries, for consumers persisting score history
+  // Endless levels: base values ramp until rampLevels, then only speed scales.
+  rampLevels: 20, // levels
+  maxBudget: 10, // twist difficulty points
+  budgetPerLevel: 0.6, // twist points per level after level 1
   startHeight: 300, // m, level 1
-  heightPerLevel: 12, // m/level, through level 10
+  heightPerLevel: 6, // m/level
   startSpeed: 30, // m/s downward, level 1
-  speedPerLevel: 0.5, // m/s/level, through level 10
-  lateStartSpeed: 4, // m/s extra starting at level 9
+  speedPerLevel: 0.4, // m/s/level
   startOffset: 40, // m, symmetric level-1 spawn range
-  offsetPerLevel: 1.5, // m/level, through level 10
+  offsetPerLevel: 1, // m/level
+  maxStartOffset: 70, // m
   startFuel: 7, // s of burn, level 1
-  minFuel: 4, // s of burn, level 10+
-  fuelRampLevels: 9, // level intervals from 1 to 10
-  scalingLevel: 10, // first full-difficulty level
-  speedScalePerLevel: 0.06, // additive speed scale per level above 10
+  minFuel: 5, // s of burn at rampLevels
+  speedScalePerLevel: 0.02, // additive speed scale per level above rampLevels
+  maxSpeedScale: 1.4, // dimensionless
+  // Twists.
   steadyWind: 0.65, // m/s²; direction seeded each drop
-  windPerLevel: 0.05, // m/s² per level after 2, through 10
+  windRange: 0.6, // m/s², seeded extra wind
   gustAcceleration: 2, // m/s² sideways, direction seeded
   gustWarningTime: 1, // s before gust onset
   gustDuration: 1.5, // s
   gustFirstDelay: 2.5, // s before first warning
   gustDelayJitter: 1, // s, seeded extra delay
   gustInterval: 3, // s from gust end to next warning, plus jitter
+  flareFirstDelay: 2, // s before first solar flare warning
+  flareWarningTime: 1, // s
+  flareDuration: 2.5, // s of instrument blackout
+  flareInterval: 3.5, // s from flare end to next warning, plus gust jitter
   armAmplitude: 5, // m sideways from x=0
   armAngularSpeed: 0.3, // radians/s
-  fogBottom: 75, // m, cosmetic visibility band; physics unaffected
-  fogTop: 140, // m
+  fogBottom: 60, // m, cosmetic visibility band; physics unaffected
+  fogTop: 125, // m
+  fogDrift: 80, // m, seeded extra fog altitude
+  hotEntrySpeed: 8, // m/s extra start speed
+  shortTank: 0.7, // fuel multiplier
+  heavyThrust: 22, // m/s²
+  downdraftGravity: 14.5, // m/s²
+  icyFins: 0.55, // sideways push multiplier
+  stickyLag: 0.3, // s ignition delay
+  narrowOffset: 2, // m catch window with tight arms
+  wideSpawn: 1.5, // spawn range multiplier
+  laneSlots: [0.15, 0.5, 0.85], // fractions of the drop column for hazard lanes
   hazardSpacing: 160, // m between periodic lane slots
   hazardSlots: 3, // slots per periodic lane, one seeded empty slot
   hazardGapSlots: 1, // empty slots per lane
-  drone: { level: 3, y: 100, w: 10, h: 5, speed: 5 }, // m, m, m, m/s
-  bird: { level: 5, y: 190, w: 8, h: 4, speed: -7 }, // opposite direction, m/s
-  balloon: { level: 7, y: 280, w: 18, h: 14, speed: 2 }, // slow and wide, m/s
+  drone: { w: 10, h: 5, speed: 5 }, // m, m, m/s
+  bird: { w: 8, h: 4, speed: 7 }, // m, m, m/s
+  balloon: { w: 18, h: 14, speed: 2 }, // slow and wide, m/s
 } as const;

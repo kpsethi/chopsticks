@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { ARCADE as C } from '../src/arcade/constants';
 import { ArcadeGame, approach, dailySeed, type ArcadeInput } from '../src/arcade/game';
-import { levelSettings } from '../src/arcade/levels';
+import { levelBudget, levelSettings, type LevelSettings } from '../src/arcade/levels';
 import { catchScore } from '../src/arcade/score';
 
 const idle: ArcadeInput = { left: false, right: false, burn: false };
@@ -10,6 +10,10 @@ const tick = 1 / 120;
 function contact(game: ArcadeGame, dx = 0, vy = -0.5) {
   Object.assign(game.booster, { x: game.arms.x + dx, y: 0.001, vx: 0, vy });
   return game.step(tick, idle);
+}
+function levelWith(seed: number, test: (s: LevelSettings) => boolean) {
+  for (let level = 2; level < 500; level++) if (test(levelSettings(level, seed >>> 0))) return level;
+  throw new Error('no level matches');
 }
 function catches(game: ArcadeGame, count: number) {
   for (let i = 0; i < count; i++) {
@@ -218,39 +222,79 @@ describe('arcade progression and score', () => {
     expect(game.lastCatch).toBeUndefined();
   });
 
-  test('every three catches advances the level and enables twists in order', () => {
+  test('every catch advances the level; level 1 is clean and later levels roll twists within budget', () => {
     const game = new ArcadeGame({ seed: 3 });
-    for (let level = 1; level <= 10; level++) {
+    expect(game.conditions.twists).toEqual([]);
+    expect(Math.abs(game.wind.base)).toBe(0);
+    expect(game.lanes).toHaveLength(0);
+    for (let level = 1; level < 8; level++) {
       expect(game.level).toBe(level);
-      expect(game.lanes).toHaveLength(level < 3 ? 0 : level < 5 ? 1 : level < 7 ? 2 : 3);
-      expect(game.wind.base === 0).toBe(level === 1);
-      expect(levelSettings(level).gusts).toBe(level >= 4);
-      expect(levelSettings(level).movingArms).toBe(level >= 6);
-      expect(levelSettings(level).fogBand !== null).toBe(level >= 8);
-      if (level < 10) {
-        catches(game, 2);
-        expect(game.level).toBe(level);
-        expect(contact(game)).toContainEqual(expect.objectContaining({ type: 'levelUp', level: level + 1 }));
-        game.step(1.2, idle);
-      }
+      expect(contact(game)).toContainEqual(expect.objectContaining({ type: 'levelUp', level: level + 1 }));
+      game.step(1.2, idle);
     }
-    expect(game.booster.fuelMax).toBe(4);
-    expect(levelSettings(9).startSpeed).toBeGreaterThan(levelSettings(8).startSpeed);
-    expect(levelSettings(11).speedScale).toBeCloseTo(1.06);
-    expect(levelSettings(12).speedScale).toBeCloseTo(1.12);
+    for (let level = 2; level <= 300; level++) {
+      const s = levelSettings(level, 7);
+      const cost = s.twists.reduce((sum, t) => sum + t.cost, 0);
+      expect(cost).toBeLessThanOrEqual(levelBudget(level));
+      expect(cost).toBeGreaterThan(0);
+      expect(s.twists.filter(t => t.group === 'engine').length).toBeLessThanOrEqual(1);
+      expect(new Set(s.twists.map(t => t.id)).size).toBe(s.twists.length);
+      expect(s.speedScale).toBeLessThanOrEqual(C.maxSpeedScale);
+      const ys = s.lanes.map(l => l.y);
+      expect(new Set(ys).size).toBe(ys.length);
+    }
+    expect(levelSettings(12, 7)).toEqual(levelSettings(12, 7));
+    expect(levelSettings(12, 7)).not.toEqual(levelSettings(12, 8));
   });
 
-  test('arms actually move at level six', () => {
+  test('a crash retries the same level with identical conditions', () => {
+    const game = new ArcadeGame({ seed: 4 });
+    catches(game, 5);
+    const before = game.conditions;
+    contact(game, 10);
+    game.step(C.explodeTime, idle);
+    expect(game.level).toBe(6);
+    expect(game.conditions).toEqual(before);
+  });
+
+  test('arms actually move on a drifting-arms level', () => {
     const game = new ArcadeGame({ seed: 1 });
-    catches(game, 15);
+    catches(game, levelWith(1, s => s.movingArms) - 1);
     const x = game.arms.x;
     game.step(0.5, idle);
     expect(game.arms.x).not.toBe(x);
   });
 
+  test('sticky valve delays thrust by the ignition lag', () => {
+    const level = levelWith(1, s => s.ignitionLag > 0);
+    const game = new ArcadeGame({ seed: 1 });
+    catches(game, level - 1);
+    game.booster.y = 1000;
+    game.step(C.stickyLag - 0.05, burn);
+    expect(game.booster.burning).toBe(false);
+    game.step(0.1, burn);
+    expect(game.booster.burning).toBe(true);
+  });
+
+  test('solar flare warns for one second then blacks out instruments', () => {
+    const game = new ArcadeGame({ seed: 5 });
+    catches(game, levelWith(5, s => s.flares) - 1);
+    let warning = -1, start = -1, end = -1;
+    for (let i = 0; i < 3000 && end < 0; i++) {
+      game.booster.y = 1000;
+      for (const e of game.step(tick, idle)) {
+        if (e.type === 'flareWarning' && warning < 0) warning = e.time;
+        if (e.type === 'flare' && start < 0) { start = e.time; expect(game.flare.active).toBe(true); }
+        if (e.type === 'flareEnd' && start >= 0) end = e.time;
+      }
+    }
+    expect(start - warning).toBeCloseTo(C.flareWarningTime, 6);
+    expect(end - start).toBeCloseTo(C.flareDuration, 6);
+  });
+
   test('gust warning precedes the shove by one second and shove lasts 1.5 seconds', () => {
     const game = new ArcadeGame({ seed: 2 });
-    catches(game, 9);
+    catches(game, levelWith(2, s => s.gusts) - 1);
     let warningTime = -1;
     let gustTime = -1;
     let endTime = -1;
@@ -276,8 +320,8 @@ describe('arcade reproducibility', () => {
   test('the same seed and input script produce identical events and state', () => {
     const a = new ArcadeGame({ seed: 99, daily: true });
     const b = new ArcadeGame({ seed: 99, daily: true });
-    catches(a, 9);
-    catches(b, 9);
+    catches(a, levelWith(99, s => s.lanes.length > 0) - 1);
+    catches(b, levelWith(99, s => s.lanes.length > 0) - 1);
     expect(a.hazards.length).toBeGreaterThan(0);
     for (let i = 0; i < 4000; i++) {
       const input = { left: i % 150 < 40, right: i % 150 > 100, burn: i % 100 < 70 };
@@ -288,15 +332,15 @@ describe('arcade reproducibility', () => {
 
   test('restart reproduces seeded lanes, spawn positions and gust scheduling', () => {
     const a = new ArcadeGame({ seed: 99 });
-    catches(a, 9);
+    catches(a, levelWith(99, s => s.lanes.length > 0) - 1);
     const first = { booster: { ...a.booster }, hazards: a.hazards.map(h => ({ ...h })), wind: { ...a.wind } };
     const events = a.step(4, idle);
     a.restart();
-    catches(a, 9);
+    catches(a, levelWith(99, s => s.lanes.length > 0) - 1);
     expect({ booster: a.booster, hazards: a.hazards, wind: a.wind }).toEqual(first);
     expect(a.step(4, idle)).toEqual(events);
     a.restart(100);
-    catches(a, 9);
+    catches(a, levelWith(99, s => s.lanes.length > 0) - 1);
     expect(a.hazards).not.toEqual(first.hazards);
   });
 

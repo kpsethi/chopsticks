@@ -13,11 +13,12 @@ export type CrashReason = 'arms' | 'speed' | 'tower' | 'ground' | 'hazard';
 export type ArcadeEvent = { time: number } & (
   | { type: 'spawn'; level: number; x: number; y: number }
   | ({ type: 'catch' | 'perfect' } & LastCatch)
-  | { type: 'crash'; reason: CrashReason; x: number; y: number; offset: number; speed: number }
+  | { type: 'crash'; reason: CrashReason; x: number; y: number; offset: number; speed: number; maxOffset: number }
   | { type: 'levelUp'; level: number }
   | { type: 'extraLife'; lives: number }
   | { type: 'gameOver'; score: number; level: number }
   | { type: 'gustWarning' | 'gust'; acceleration: number }
+  | { type: 'flareWarning' | 'flare' | 'flareEnd' }
   | { type: 'burnStart' | 'burnStop' | 'fuelOut' }
 );
 type EventPayload = ArcadeEvent extends infer E ? E extends ArcadeEvent ? Omit<E, 'time'> : never : never;
@@ -50,8 +51,8 @@ export type ApproachCue = 'good' | 'burn' | 'late';
 /** Descent advice from height above the arms and vertical speed, ignoring drag.
  * burnHeight is where a cueMargin-strength burn reaches the arms at cueArrival.
  * 'late' means even a full burn now arrives faster than catchSpeed. */
-export function approach(y: number, vy: number): { cue: ApproachCue; burnHeight: number } {
-  const h = Math.max(0, y), v = Math.max(0, -vy), full = C.burnThrust - C.gravity, plan = full * C.cueMargin;
+export function approach(y: number, vy: number, thrust: number = C.burnThrust, gravity: number = C.gravity): { cue: ApproachCue; burnHeight: number } {
+  const h = Math.max(0, y), v = Math.max(0, -vy), full = thrust - gravity, plan = full * C.cueMargin;
   const burnHeight = Math.max(0, (v * v - C.cueArrival ** 2) / (2 * plan));
   const cue = v * v > C.catchSpeed ** 2 + 2 * full * h ? 'late' : v * v > C.cueArrival ** 2 + 2 * plan * h ? 'burn' : 'good';
   return { cue, burnHeight };
@@ -73,6 +74,7 @@ export class ArcadeGame {
   booster: Booster = { x: 0, y: 0, vx: 0, vy: 0, fuel: 0, fuelMax: 0, tilt: 0, burning: false };
   arms = { x: 0, closed: false, closing: false };
   wind = { base: 0, gust: 0, warning: false };
+  flare = { warning: false, active: false };
   level = 1;
   score = 0;
   multiplier = 1;
@@ -92,6 +94,9 @@ export class ArcadeGame {
   private gustPhase: 'quiet' | 'warning' | 'gust' = 'quiet';
   private gustTicks = 0;
   private gustForce = 0;
+  private flarePhase: 'quiet' | 'warning' | 'flare' = 'quiet';
+  private flareTicks = 0;
+  private heldTicks = 0;
   private pending: ArcadeEvent[] = [];
 
   constructor(opts: { seed: number; daily?: boolean }) {
@@ -104,6 +109,8 @@ export class ArcadeGame {
   get hazards(): readonly Hazard[] { return this.objects; }
   get lanes(): readonly HazardLane[] { return this.settings.lanes; }
   get fogBand() { return this.settings.fogBand; }
+  /** The current level's rolled conditions (twists, thrust, catch window, ...). */
+  get conditions(): Readonly<LevelSettings> { return this.settings; }
   get time() { return this.ticks * C.fixedStep; }
 
   restart(seed = this.seed): void {
@@ -137,7 +144,7 @@ export class ArcadeGame {
   private flush() { const events = this.pending; this.pending = []; return events; }
 
   private spawn() {
-    this.settings = levelSettings(this.level);
+    this.settings = levelSettings(this.level, this.seed); // pure: a crash retries identical conditions
     const s = this.settings;
     this.state = 'dropping';
     this.phaseTicks = 0;
@@ -149,6 +156,9 @@ export class ArcadeGame {
     this.gustPhase = 'quiet';
     this.gustTicks = Math.round((C.gustFirstDelay + this.random() * C.gustDelayJitter) / C.fixedStep);
     this.gustForce = 0;
+    this.flare = { warning: false, active: false };
+    this.flarePhase = 'quiet'; this.heldTicks = 0;
+    this.flareTicks = Math.round((C.flareFirstDelay + this.random() * C.gustDelayJitter) / C.fixedStep);
     this.objects = [];
     const period = C.hazardSlots * C.hazardSpacing;
     for (const lane of s.lanes) {
@@ -181,7 +191,11 @@ export class ArcadeGame {
       return;
     }
     this.updateWind();
-    const burning = input.burn && this.booster.fuel > EPSILON;
+    this.updateFlare();
+    // Sticky valve: thrust only after the button has been held for ignitionLag.
+    this.heldTicks = input.burn ? this.heldTicks + 1 : 0;
+    const lit = this.heldTicks * C.fixedStep + EPSILON >= this.settings.ignitionLag;
+    const burning = input.burn && lit && this.booster.fuel > EPSILON;
     this.setBurning(burning);
     // A partially fuelled last tick gets only its remaining seconds of thrust.
     const poweredTime = burning ? Math.min(C.fixedStep, this.booster.fuel) : 0;
@@ -221,13 +235,31 @@ export class ArcadeGame {
     }
   }
 
+  private updateFlare() {
+    if (!this.settings.flares) return;
+    if (--this.flareTicks > 0) return;
+    if (this.flarePhase === 'quiet') {
+      this.flarePhase = 'warning'; this.flare.warning = true;
+      this.flareTicks = Math.round(C.flareWarningTime / C.fixedStep);
+      this.emit({ type: 'flareWarning' });
+    } else if (this.flarePhase === 'warning') {
+      this.flarePhase = 'flare'; this.flare = { warning: false, active: true };
+      this.flareTicks = Math.round(C.flareDuration / C.fixedStep);
+      this.emit({ type: 'flare' });
+    } else {
+      this.flarePhase = 'quiet'; this.flare.active = false;
+      this.flareTicks = Math.round((C.flareInterval + this.random() * C.gustDelayJitter) / C.fixedStep);
+      this.emit({ type: 'flareEnd' });
+    }
+  }
+
   private advance(dt: number, input: ArcadeInput, burning: boolean) {
     const b = this.booster;
     const oldX = b.x, oldY = b.y, oldVy = b.vy, oldArmX = this.arms.x;
     const side = Number(input.right) - Number(input.left);
-    const ax = side * (burning ? C.burnSidePush : C.sidePush) + this.wind.base + this.wind.gust;
+    const ax = side * (burning ? C.burnSidePush : C.sidePush) * this.settings.sideScale + this.wind.base + this.wind.gust;
     const horizontal = integrate(b.x, b.vx, ax, C.sideDrag, dt);
-    const vertical = integrate(b.y, b.vy, (burning ? C.burnThrust : 0) - C.gravity, C.verticalDrag, dt);
+    const vertical = integrate(b.y, b.vy, (burning ? this.settings.thrust : 0) - this.settings.gravity, C.verticalDrag, dt);
     const limit = C.worldHalfWidth - C.halfWidth;
     b.x = Math.max(-limit, Math.min(limit, horizontal.position));
     b.vx = b.x === horizontal.position ? horizontal.velocity : 0;
@@ -263,7 +295,7 @@ export class ArcadeGame {
       b.vy = oldVy + (b.vy - oldVy) * contact;
       this.arms.x = oldArmX + (this.arms.x - oldArmX) * contact;
       const offset = b.x - this.arms.x;
-      if (Math.abs(offset) > C.catchOffset) this.crash('arms');
+      if (Math.abs(offset) > this.settings.catchOffset) this.crash('arms');
       else if (-b.vy > C.catchSpeed) this.crash('speed');
       else this.catch(offset);
     }
@@ -271,14 +303,16 @@ export class ArcadeGame {
 
   private crash(reason: CrashReason) {
     this.setBurning(false);
+    this.flare = { warning: false, active: false };
     this.state = 'exploding'; this.phaseTicks = 0;
     this.streak = 0; this.multiplier = 1; this.lives--;
     this.emit({ type: 'crash', reason, x: this.booster.x, y: this.booster.y,
-      offset: Math.abs(this.booster.x - this.arms.x), speed: Math.max(0, -this.booster.vy) });
+      offset: Math.abs(this.booster.x - this.arms.x), speed: Math.max(0, -this.booster.vy), maxOffset: this.settings.catchOffset });
   }
 
   private catch(dx: number) {
     this.setBurning(false);
+    this.flare = { warning: false, active: false };
     this.state = 'celebrate'; this.phaseTicks = 0;
     this.arms.closing = true;
     this.catches++; this.streak++;

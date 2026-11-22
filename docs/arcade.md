@@ -44,22 +44,9 @@ A booster falls toward the tower. **← → to slide, hold SPACE to burn.** Drop
 
 All of these are tunables in one constants block.
 
-## Levels (every 3 catches)
+## Levels (endless, superseded)
 
-| Level | Twist |
-|---|---|
-| 1 | Clean drop |
-| 2 | Steady wind (constant sideways push; tower flag and streaks show it) |
-| 3 | First hazard lane: drones crossing at one height |
-| 4 | Gusts: a 1 s visible warning, then a 1.5 s sideways shove |
-| 5 | Two hazard lanes (drones + birds, opposite directions, different speeds) |
-| 6 | Arms slide slowly along x (moving target) |
-| 7 | Balloon lane (slow, wide) + three lanes total |
-| 8 | Low cloud band: hazards are hidden inside a fog band |
-| 9 | Less fuel, faster start |
-| 10+ | Everything; speeds scale +6% per level |
-
-Hazard lanes are horizontal bands at fixed heights, each with objects moving at a constant speed, evenly spaced with seeded gaps. That's Frogger in reverse: you fall through the lanes. Hazards use simple hitboxes: the booster is a 9 × 70 m rectangle around its CoM, hazards are axis-aligned boxes.
+Updated after playtest: every catch is a new level, endless. Level 1 is clean; later levels roll seeded random twists from a growing difficulty budget (see `src/arcade/levels.ts` and the README table). A crash retries identical conditions. Catch window widened to 3.5 m / 7 m/s (perfect 1 m / 2.5 m/s).
 
 ## Scoring
 

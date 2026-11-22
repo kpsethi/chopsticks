@@ -17,26 +17,31 @@ Touch supports multiple fingers, so you can slide and burn together. Use the on-
 
 ## Rules
 
-- **Catch window:** when the pins descend to arm height, stay within 1.5 m of the arms' centre and descend at no more than 3 m/s. The arms close automatically on a valid catch. A missed or hard catch, tower collision, ground impact, or hazard collision costs a booster.
-- **Perfect:** land within 0.4 m at no more than 1 m/s to double the catch score.
+- **Catch window:** when the pins descend to arm height, stay within 3.5 m of the arms' centre (2 m with Tight arms) and descend at no more than 7 m/s. The arms close automatically on a valid catch. A missed or hard catch, tower collision, ground impact, or hazard collision costs a booster.
+- **Perfect:** land within 1 m at no more than 2.5 m/s to double the catch score.
 - **Scoring and streaks:** each catch earns 100 base points plus up to 100 each for centring, softness, and remaining fuel. Consecutive catches multiply the score from ×1 to ×5; a crash resets the streak.
 - **Lives:** start with three boosters. Earn an extra life every ten catches, up to five lives. Empty fuel means no more burn for that drop.
-- **Levels:** advance every three catches. Earlier twists remain active, while drops get higher, faster, and leaner on fuel through level 10.
+- **Levels:** endless. Every catch is a new level; a crash retries the same level with the same conditions. Level 1 is a clean drop; every later level rolls random twists from a difficulty budget that grows with the level. Drops get higher, faster and leaner on fuel up to level 20, then only faster.
+- **Feedback:** the drop line is green on glide, amber when it's time to burn, red when it's too late. Start burning when the booster's base reaches the red burn line. The last drop's result (speed, offset) stays on screen, and game over lists why each booster was lost.
 
-| Level | New twist |
+| Twist | Effect |
 | --- | --- |
-| 1 | Clean drop |
-| 2 | Steady wind |
-| 3 | Drone lane |
-| 4 | Gusts with a one-second warning |
-| 5 | Bird lane |
-| 6 | Moving arms |
-| 7 | Balloon lane |
-| 8 | Fog band |
-| 9 | Extra starting speed |
-| 10+ | All twists; speeds increase by 6% per level above 10 |
+| Crosswind | Steady sideways push |
+| Gust front | Sideways shoves with a one-second warning |
+| Drone traffic / Bird flock / Balloon race | Hazard lanes at random heights and directions |
+| Drifting arms | The arms slide back and forth |
+| Low cloud | Fog band hides traffic |
+| Hot entry | Faster starting speed |
+| Short tank | 30% less fuel |
+| Heavy booster | Weaker engine |
+| Downdraft | Stronger gravity |
+| Solar flare | Instruments, drop line and brackets black out for 2.5 s, with a warning |
+| Sticky valve | Engine lights 0.3 s after you press burn |
+| Iced fins | Weaker sideways control |
+| Tight arms | Catch window shrinks to 2 m |
+| Wild spawn | Booster starts further from the tower |
 
-**Daily challenge:** everyone gets the same seeded starting conditions for each UTC date, including spawn positions and hazard layouts. Retry to improve a separate daily best. Scores and records are stored locally on your device.
+At most one engine twist (short tank, heavy booster, downdraft) per level.
 
 ## Development
 

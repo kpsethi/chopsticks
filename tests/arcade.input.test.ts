@@ -44,14 +44,13 @@ vi.mock('../src/arcade/audio', () => ({ ArcadeAudio: class {
   setMuted(value: boolean) { presentation.muted = value; }
 } }));
 vi.mock('../src/arcade/ui/screens', () => ({
-  LEVEL_NAMES: ['Clean drop'],
   ArcadeUI: class {
     root = Object.assign(new EventTarget(), { remove() {} });
     surface = Object.assign(new EventTarget(), { setPointerCapture() {} });
     constructor() { presentation.surface = this.surface; }
     setMuted(value: boolean) { presentation.muted = value; }
     show(screen: string) { presentation.screen = screen; presentation.shows++; }
-    holds() {} reset() {} update() {} announce() {} gust() {} extraLife() {} debrief() {}
+    holds() {} reset() {} update() {} announce() {} gust() {} extraLife() {} debrief() {} conditions() {}
   },
 }));
 
