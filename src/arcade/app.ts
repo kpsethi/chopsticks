@@ -10,7 +10,7 @@ const crashMessage = (e: Extract<ArcadeEvent, { type: 'crash' }>) => {
   if (e.reason === 'arms' || e.reason === 'speed') {
     const faults = [];
     if (e.speed > C.catchSpeed) faults.push(`Too fast: ${e.speed.toFixed(1)} m/s (max ${C.catchSpeed})`);
-    if (e.offset > e.maxOffset) faults.push(`${faults.length ? 'and' : 'Off centre:'} ${e.offset.toFixed(1)} m (max ${e.maxOffset})`);
+    if (e.offset > e.maxOffset) faults.push(`${faults.length ? 'and off centre' : 'Off centre:'} ${e.offset.toFixed(1)} m (max ${e.maxOffset})`);
     const tip = e.speed > C.catchSpeed ? 'Start burning at the red line.' : 'Stay between the brackets.';
     return `${faults.join(' ')}. ${tip}`;
   }
@@ -147,11 +147,12 @@ export class ArcadeApp {
     this.renderer.event(event); this.audio.event(event);
     switch (event.type) {
       case 'spawn':
+        this.ui.clearPopup(); // the crash card never covers a fresh drop
         // Only announce new levels so the last crash reason is not covered up.
         if (event.level !== this.announcedLevel) {
           this.announcedLevel = event.level;
           const twists = this.game.conditions.twists.map(t => t.name);
-          this.ui.announce(`LEVEL ${event.level}`, twists.length ? twists.join(' · ') : 'Clean drop', event.time, 1.8);
+          this.ui.announce(`LEVEL ${event.level}`, twists.length ? twists.join(' · ') : 'Clean drop', event.time, 1.2);
         }
         this.ui.conditions(this.game);
         break;
@@ -159,11 +160,9 @@ export class ArcadeApp {
         this.longestStreak = Math.max(this.longestStreak, this.game.streak);
         this.bestCatch = Math.max(this.bestCatch, event.points);
         this.ui.announce(event.perfect ? 'PERFECT!' : 'CAUGHT!', `+${event.points}  ·  STREAK ×${this.game.multiplier}`, event.time, 1.2, 'catch');
-        this.ui.debrief('catch', event.perfect ? 'Last: PERFECT' : 'Last: caught',
-          `${(-event.vy).toFixed(1)} m/s · ${Math.abs(event.dx).toFixed(1)} m off · +${event.points}`); break;
+        break;
       case 'crash':
         this.ui.announce('BOOSTER LOST', crashMessage(event), event.time, C.explodeTime, 'crash');
-        this.ui.debrief('crash', 'Last: lost', crashMessage(event));
         this.losses.push(crashMessage(event)); break;
       case 'extraLife': this.ui.extraLife(); break;
       case 'gustWarning': case 'gust': this.ui.gust(event.acceleration); break;

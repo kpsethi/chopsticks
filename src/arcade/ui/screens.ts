@@ -27,7 +27,6 @@ export class ArcadeUI {
   private readonly popupTitle: HTMLElement;
   private readonly popupDetail: HTMLElement;
   private readonly wind: HTMLElement;
-  private readonly debriefBox: HTMLElement;
   private readonly mute: HTMLButtonElement;
   private readonly pause: HTMLButtonElement;
   private readonly zones: HTMLElement[];
@@ -56,7 +55,6 @@ export class ArcadeUI {
       <div class="alignment" hidden></div>
       <div class="popup" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
       <div class="wind-alert" role="status" hidden></div>
-      <div class="debrief" role="status" hidden><b></b><span></span></div>
       <div class="extra-life" role="status" hidden>+1 booster</div>
       <div class="touch-zones" hidden><div>←<small>Slide</small></div><div>↑<small>Hold to burn</small></div><div>→<small>Slide</small></div></div>
       <footer class="flight-footer" hidden><span>← → slide</span><span>Hold <kbd>SPACE</kbd> to burn</span><span><kbd>P</kbd> pause · <kbd>M</kbd> sound</span></footer>`;
@@ -67,7 +65,7 @@ export class ArcadeUI {
     this.telemetry = get('.telemetry'); this.speed = get('.speed'); this.cue = get('.cue'); this.fuel = get('.fuel-track i');
     this.fuelNumber = get('.fuel-number'); this.alignment = get('.alignment');
     this.popup = get('.popup'); this.popupTitle = get('.popup strong'); this.popupDetail = get('.popup span');
-    this.wind = get('.wind-alert'); this.debriefBox = get('.debrief'); this.mute = get('[data-action="mute"]'); this.pause = get('[data-action="pause"]');
+    this.wind = get('.wind-alert'); this.mute = get('[data-action="mute"]'); this.pause = get('[data-action="pause"]');
     this.zones = Array.from(this.root.querySelectorAll('.touch-zones > div'));
     document.body.append(this.root);
   }
@@ -86,7 +84,6 @@ export class ArcadeUI {
     this.root.querySelector<HTMLElement>('.touch-zones')!.hidden = !playing;
     this.root.querySelector<HTMLElement>('.flight-footer')!.hidden = !playing;
     if (!playing) { this.popup.hidden = true; this.wind.hidden = true; }
-    this.debriefBox.hidden = !playing || !this.debriefBox.dataset.kind;
     this.best.textContent = number(game.daily ? storage.dailyBest(date) : storage.data.bestScore);
     this.conditions(game);
     if (screen === 'title') {
@@ -133,11 +130,7 @@ export class ArcadeUI {
     this.mode.textContent = [game.daily ? `Daily · ${this.date} UTC` : 'Free flight', ...(twists.length ? twists : ['Clean drop'])].join(' · ');
   }
   private date = '';
-  /** Result of the last drop; stays up until the next catch or crash. */
-  debrief(kind: 'catch' | 'crash', title: string, detail: string): void {
-    this.debriefBox.dataset.kind = kind; this.debriefBox.hidden = this.screen !== 'playing';
-    this.debriefBox.querySelector('b')!.textContent = title; this.debriefBox.querySelector('span')!.textContent = detail;
-  }
+  clearPopup(): void { this.popup.hidden = true; this.popupUntil = 0; }
   gust(acceleration: number): void { this.gustDirection = Math.sign(acceleration); }
   extraLife(): void {
     const element = this.root.querySelector<HTMLElement>('.extra-life')!;
@@ -146,7 +139,7 @@ export class ArcadeUI {
   holds(left: boolean, burn: boolean, right: boolean): void {
     this.zones[0].classList.toggle('held', left); this.zones[1].classList.toggle('held', burn); this.zones[2].classList.toggle('held', right);
   }
-  reset(): void { this.debriefBox.hidden = true; delete this.debriefBox.dataset.kind; this.updateTime = -1; this.lastScore = this.lastLives = this.lastLevel = this.lastMultiplier = -1; this.popup.hidden = true; }
+  reset(): void { this.updateTime = -1; this.lastScore = this.lastLives = this.lastLevel = this.lastMultiplier = -1; this.popup.hidden = true; }
   update(game: ArcadeGame, view: ArcadeCamera): void {
     if (this.screen !== 'playing') return;
     if (game.time >= this.popupUntil) this.popup.hidden = true;

@@ -32,7 +32,7 @@ export const ARCADE = {
   extraLifeCatches: 10, // catches per extra life
   catchesPerLevel: 1, // catches; every catch is a new level
   celebrateTime: 1.2, // s
-  explodeTime: 2.2, // s
+  explodeTime: 3, // s; the crash card stays up this long
   armCloseTime: 0.15, // s
   basePoints: 100, // points
   centeringPoints: 100, // maximum points
