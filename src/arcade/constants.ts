@@ -43,8 +43,7 @@ export const ARCADE = {
   scoreHistoryLimit: 10, // entries, for consumers persisting score history
   // Endless levels: base values ramp until rampLevels, then only speed scales.
   rampLevels: 20, // levels
-  maxBudget: 10, // twist difficulty points
-  budgetPerLevel: 0.6, // twist points per level after level 1
+  maxBudget: 9, // twist difficulty points held at once
   startHeight: 300, // m, level 1
   heightPerLevel: 6, // m/level
   startSpeed: 30, // m/s downward, level 1
@@ -54,8 +53,8 @@ export const ARCADE = {
   maxStartOffset: 70, // m
   startFuel: 7, // s of burn, level 1
   minFuel: 5, // s of burn at rampLevels
-  speedScalePerLevel: 0.02, // additive speed scale per level above rampLevels
-  maxSpeedScale: 1.4, // dimensionless
+  speedScalePerLevel: 0.015, // additive speed scale per level
+  maxSpeedScale: 1.5, // dimensionless
   // Twists.
   steadyWind: 0.65, // m/s²; direction seeded each drop
   windRange: 0.6, // m/s², seeded extra wind

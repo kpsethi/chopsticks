@@ -58,9 +58,14 @@ export class ArcadeAudio {
   event(event: ArcadeEvent): void {
     if (!this.context || this.muted) return;
     switch (event.type) {
-      case 'catch':
+      case 'catch': {
+        // The chord climbs a whole tone per streak step, so a run sounds like it is building.
+        const up = Math.pow(2, Math.min(event.streak - 1, 8) * 2 / 12);
         this.tone(1300, 0.14, 0.13, 0, 410, 'square');
-        this.tone(261.63, 0.65, 0.12, 0.08); this.tone(329.63, 0.65, 0.1, 0.16); this.tone(392, 0.65, 0.1, 0.24); break;
+        this.tone(261.63 * up, 0.65, 0.12, 0.08); this.tone(329.63 * up, 0.65, 0.1, 0.16); this.tone(392 * up, 0.65, 0.1, 0.24);
+        if (event.streak >= 3) this.tone(523.25 * up, 0.8, 0.09, 0.32);
+        break;
+      }
       case 'perfect':
         for (let i = 0; i < 5; i++) this.tone(1046.5 * Math.pow(2, i / 6), 0.24, 0.07, i * 0.075); break;
       case 'crash': this.burst(1.3, 0.9); this.tone(70, 0.8, 0.45, 0, 20); break;

@@ -32,7 +32,6 @@ export class ArcadeApp {
   private runDate = today();
   private longestStreak = 0;
   private bestCatch = 0;
-  private losses: string[] = [];
   private announcedLevel = 0;
   private saved = false;
   private lastTime = 0;
@@ -62,7 +61,7 @@ export class ArcadeApp {
     this.audio.unlock(); this.audio.silence(); this.audio.resume(); this.controls.clear();
     this.runDate = today();
     this.game = new ArcadeGame({ seed: daily ? dailySeed(new Date(this.runDate)) : randomSeed(), daily });
-    this.longestStreak = this.bestCatch = 0; this.saved = false; this.losses = []; this.announcedLevel = 0;
+    this.longestStreak = this.bestCatch = 0; this.saved = false; this.announcedLevel = 0;
     this.ui.reset(); this.show('playing');
     for (const event of this.game.step(0, this.controls.input)) this.event(event);
     this.lastTime = performance.now();
@@ -70,7 +69,7 @@ export class ArcadeApp {
   private show(screen: Screen): void {
     this.screen = screen; this.controls.clear(); this.ui.holds(false, false, false);
     if (screen !== 'playing') this.audio.silence(); else this.audio.resume();
-    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game, this.longestStreak, this.bestCatch, this.losses);
+    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game);
     if (screen === 'playing') (document.activeElement as HTMLElement | null)?.blur();
   }
   private menu(): void {
@@ -151,19 +150,19 @@ export class ArcadeApp {
         // Only announce new levels so the last crash reason is not covered up.
         if (event.level !== this.announcedLevel) {
           this.announcedLevel = event.level;
-          const twists = this.game.conditions.twists.map(t => t.name);
-          this.ui.announce(`LEVEL ${event.level}`, twists.length ? twists.join(' · ') : 'Clean drop', event.time, 1.2);
+          const added = this.game.conditions.added;
+          this.ui.announce(`LEVEL ${event.level}`, added ? `+ ${added.name}: ${added.effect}` : 'Clean drop', event.time, 1.6, 'level');
         }
         this.ui.conditions(this.game);
         break;
       case 'catch':
         this.longestStreak = Math.max(this.longestStreak, this.game.streak);
         this.bestCatch = Math.max(this.bestCatch, event.points);
-        this.ui.announce(event.perfect ? 'PERFECT!' : 'CAUGHT!', `+${event.points}  ·  STREAK ×${this.game.multiplier}`, event.time, 1.2, 'catch');
+        this.ui.announce(`${event.perfect ? 'PERFECT' : 'CAUGHT'}${event.streak > 1 ? ` ×${this.game.multiplier}` : '!'}`,
+          `+${event.points}${event.streak > 1 ? `  ·  ${event.streak} IN A ROW${event.streak >= 3 ? ' 🔥' : ''}` : ''}`, event.time, 1.2, event.streak >= 3 ? 'streak' : 'catch');
         break;
       case 'crash':
-        this.ui.announce('BOOSTER LOST', crashMessage(event), event.time, C.explodeTime, 'crash');
-        this.losses.push(crashMessage(event)); break;
+        this.ui.announce('BOOSTER LOST', crashMessage(event), event.time, C.explodeTime, 'crash'); break;
       case 'extraLife': this.ui.extraLife(); break;
       case 'gustWarning': case 'gust': this.ui.gust(event.acceleration); break;
       case 'fuelOut': this.ui.announce('FUEL EMPTY', 'Make the glide count.', event.time, 0.9); break;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { ARCADE as C } from '../src/arcade/constants';
 import { ArcadeGame, approach, dailySeed, type ArcadeInput } from '../src/arcade/game';
-import { levelBudget, levelSettings, type LevelSettings } from '../src/arcade/levels';
+import { levelSettings, type LevelSettings } from '../src/arcade/levels';
 import { catchScore } from '../src/arcade/score';
 
 const idle: ArcadeInput = { left: false, right: false, burn: false };
@@ -146,7 +146,7 @@ describe('arcade physics and collisions', () => {
 
   test('the whole 70 m body collides with a moving hazard', () => {
     const game = new ArcadeGame({ seed: 3 });
-    catches(game, 6);
+    catches(game, levelWith(3, s => s.lanes.length > 0) - 1);
     const hazard = game.hazards.find(h => Math.abs(h.x) < 70)!;
     expect(hazard).toBeDefined();
     Object.assign(game.booster, { x: hazard.x, y: hazard.y + 60, vx: 0, vy: -1 });
@@ -222,7 +222,7 @@ describe('arcade progression and score', () => {
     expect(game.lastCatch).toBeUndefined();
   });
 
-  test('every catch advances the level; level 1 is clean and later levels roll twists within budget', () => {
+  test('every catch advances the level; level 1 is clean and each later level stacks one new twist', () => {
     const game = new ArcadeGame({ seed: 3 });
     expect(game.conditions.twists).toEqual([]);
     expect(Math.abs(game.wind.base)).toBe(0);
@@ -235,8 +235,12 @@ describe('arcade progression and score', () => {
     for (let level = 2; level <= 300; level++) {
       const s = levelSettings(level, 7);
       const cost = s.twists.reduce((sum, t) => sum + t.cost, 0);
-      expect(cost).toBeLessThanOrEqual(levelBudget(level));
+      expect(cost).toBeLessThanOrEqual(C.maxBudget);
       expect(cost).toBeGreaterThan(0);
+      // Stacking: this level keeps last level's twists, minus at most the one rotated out.
+      const previous = levelSettings(level - 1, 7).twists.filter(t => t !== s.removed);
+      expect(s.twists).toEqual([...previous, s.added].filter(Boolean));
+      expect(s.added).not.toBeNull();
       expect(s.twists.filter(t => t.group === 'engine').length).toBeLessThanOrEqual(1);
       expect(new Set(s.twists.map(t => t.id)).size).toBe(s.twists.length);
       expect(s.speedScale).toBeLessThanOrEqual(C.maxSpeedScale);

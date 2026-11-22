@@ -74,7 +74,7 @@ export class ArcadeUI {
     this.mute.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
     this.mute.setAttribute('aria-pressed', String(muted));
   }
-  show(screen: Screen, storage: ArcadeStorage, date: string, game: ArcadeGame, longestStreak = 0, bestCatch = 0, losses: readonly string[] = []): void {
+  show(screen: Screen, storage: ArcadeStorage, date: string, game: ArcadeGame): void {
     this.screen = screen; this.root.dataset.screen = screen; this.date = date;
     const playing = screen === 'playing';
     this.hud.hidden = screen === 'title' || screen === 'help';
@@ -106,16 +106,16 @@ export class ArcadeUI {
         <p class="touch-help">Touch: hold the left, middle, or right third of the screen. Use two fingers to slide and burn.</p>
         <p><b>Catch:</b> within ${C.catchOffset} m of centre, descending at ${C.catchSpeed} m/s or less.<br><b>Perfect:</b> within ${C.perfectOffset} m, at ${C.perfectSpeed} m/s or less.</p>
         <p>The drop line turns <b class="ok">green</b> when you’re on glide, <b class="warn">amber</b> when it’s time to burn, <b class="bad">red</b> when you’re too fast. Start burning when the bottom of the booster reaches the red burn line.</p>
-        <p>Avoid the tower and traffic. Every catch is a new level with random twists: wind, traffic, solar flares that black out your instruments, heavy boosters, sticky valves, iced fins and more. Crash and you retry the same level.</p><button class="primary" data-action="back">GOT IT <span>↗</span></button></div>`;
+        <p>Avoid the tower and traffic. Every catch is a new level that adds one random twist on top of the last: wind, traffic, solar flares, heavy boosters, sticky valves and more. Active twists and what they do are listed under your score. Crash and you retry the same level.</p><button class="primary" data-action="back">GOT IT <span>↗</span></button></div>`;
     } else if (screen === 'gameOver') {
-      this.panel.innerHTML = `<div class="modal-card results-card"><p class="site-line">${game.daily ? 'Daily challenge · ' + date : 'All boosters expended'}</p>
-        <h2>SHIFT OVER.</h2><div class="final-score">${number(game.score)}<small>points</small></div>
-        <dl class="results"><div><dt>${game.daily ? "Today’s best" : 'Personal best'}</dt><dd>${number(game.daily ? storage.dailyBest(date) : storage.data.bestScore)}</dd></div>
-        <div><dt>Level reached</dt><dd>${String(game.level).padStart(2, '0')}</dd></div><div><dt>Longest streak</dt><dd>${longestStreak}</dd></div>
-        <div><dt>Best catch</dt><dd>${number(bestCatch)} <small>pts</small></dd></div></dl>
-        ${losses.length ? `<ol class="losses">${losses.map(l => `<li>${l}</li>`).join('')}</ol>` : ''}
-        <button class="primary" data-action="retry">GO AGAIN <span>↗</span></button><button class="text-button" data-action="menu">Back to menu</button>
-        <p class="hint">SPACE / tap to retry · M for menu</p></div>`;
+      const best = game.daily ? storage.dailyBest(date) : storage.data.bestScore;
+      const newBest = game.score > 0 && game.score >= best;
+      this.panel.innerHTML = `<div class="modal-card results-card game-over"><h2>GAME OVER</h2>
+        <div class="final-score">${number(game.score)}<small>points</small></div>
+        ${newBest ? '<p class="new-best">NEW BEST!</p>' : `<p class="best-line">${game.daily ? 'Today’s best' : 'Best'} ${number(best)}</p>`}
+        <p class="level-line">Reached level ${game.level}</p>
+        <button class="primary" data-action="retry">TRY AGAIN <span>↻</span></button><button class="text-button" data-action="menu">Menu</button>
+        <p class="hint">SPACE / tap to try again</p></div>`;
     }
     if (!playing) this.panel.querySelector<HTMLButtonElement>('.primary')?.focus({ preventScroll: true });
   }
@@ -124,10 +124,11 @@ export class ArcadeUI {
     this.popup.dataset.kind = kind; this.popup.hidden = false; this.popupUntil = time + duration;
     this.popup.classList.remove('arrive'); void this.popup.offsetWidth; this.popup.classList.add('arrive');
   }
-  /** Mode and the current level's twists, shown under the score. */
+  /** Mode, then every active twist with what it does; this level's new twist is flagged. */
   conditions(game: ArcadeGame): void {
-    const twists = game.conditions.twists.map(t => t.name);
-    this.mode.textContent = [game.daily ? `Daily · ${this.date} UTC` : 'Free flight', ...(twists.length ? twists : ['Clean drop'])].join(' · ');
+    const c = game.conditions;
+    const rows = c.twists.map(t => `<li${t === c.added ? ' class="new"' : ''}><b>${t.name}</b> ${t.effect}</li>`).join('');
+    this.mode.innerHTML = `<span>${game.daily ? `Daily · ${this.date} UTC` : 'Free flight'}</span>${rows ? `<ul>${rows}</ul>` : '<ul><li><b>Clean drop</b> No twists yet</li></ul>'}`;
   }
   private date = '';
   clearPopup(): void { this.popup.hidden = true; this.popupUntil = 0; }
@@ -147,7 +148,12 @@ export class ArcadeUI {
     if (game.time - this.updateTime < 1 / 30 && game.time >= this.updateTime) return;
     this.updateTime = game.time;
     if (game.score !== this.lastScore) { this.score.textContent = number(game.score); this.lastScore = game.score; }
-    if (game.multiplier !== this.lastMultiplier) { this.multiplier.textContent = `×${game.multiplier}`; this.lastMultiplier = game.multiplier; }
+    if (game.multiplier !== this.lastMultiplier) {
+      this.multiplier.textContent = `×${game.multiplier}`; this.multiplier.dataset.heat = String(game.multiplier);
+      this.multiplier.classList.remove('bump'); void this.multiplier.offsetWidth; this.multiplier.classList.add('bump');
+      this.lastMultiplier = game.multiplier;
+    }
+    this.root.style.setProperty('--heat', String(Math.min(1, (game.level - 1) / 15)));
     if (game.level !== this.lastLevel) { this.level.textContent = String(game.level).padStart(2, '0'); this.lastLevel = game.level; }
     if (game.lives !== this.lastLives) {
       this.lives.innerHTML = '<i class="booster-icon"></i>'.repeat(game.lives);

@@ -12,10 +12,12 @@ export interface HazardLane {
 }
 export type TwistId = 'wind' | 'gusts' | 'drone' | 'bird' | 'balloon' | 'movingArms' | 'fog' | 'hot'
   | 'shortTank' | 'heavy' | 'downdraft' | 'flare' | 'sticky' | 'icyFins' | 'narrow' | 'wide';
-export interface Twist { id: TwistId; name: string; cost: number; group?: 'engine' }
+export interface Twist { id: TwistId; name: string; effect: string; cost: number; group?: 'engine' }
 export interface LevelSettings {
   level: number;
   twists: readonly Twist[];
+  added: Twist | null; // twist new this level
+  removed: Twist | null; // twist rotated out this level
   wind: number;
   gusts: boolean;
   flares: boolean;
@@ -37,46 +39,55 @@ export interface LevelSettings {
 /** Every twist a level can roll. Cost is its share of the level's difficulty budget;
  * at most one 'engine' twist is rolled so a stopping burn always stays affordable. */
 export const TWISTS: readonly Twist[] = [
-  { id: 'wind', name: 'Crosswind', cost: 1 },
-  { id: 'gusts', name: 'Gust front', cost: 2 },
-  { id: 'drone', name: 'Drone traffic', cost: 2 },
-  { id: 'bird', name: 'Bird flock', cost: 2 },
-  { id: 'balloon', name: 'Balloon race', cost: 2 },
-  { id: 'movingArms', name: 'Drifting arms', cost: 2 },
-  { id: 'fog', name: 'Low cloud', cost: 2 },
-  { id: 'hot', name: 'Hot entry', cost: 1 },
-  { id: 'shortTank', name: 'Short tank', cost: 1, group: 'engine' },
-  { id: 'heavy', name: 'Heavy booster', cost: 1, group: 'engine' },
-  { id: 'downdraft', name: 'Downdraft', cost: 1, group: 'engine' },
-  { id: 'flare', name: 'Solar flare', cost: 2 },
-  { id: 'sticky', name: 'Sticky valve', cost: 1 },
-  { id: 'icyFins', name: 'Iced fins', cost: 1 },
-  { id: 'narrow', name: 'Tight arms', cost: 2 },
-  { id: 'wide', name: 'Wild spawn', cost: 1 },
+  { id: 'wind', name: 'Crosswind', effect: 'Steady wind pushes you sideways', cost: 1 },
+  { id: 'gusts', name: 'Gust front', effect: 'Sudden sideways shoves, after a warning', cost: 2 },
+  { id: 'drone', name: 'Drone traffic', effect: 'Drones cross your path: find a gap', cost: 2 },
+  { id: 'bird', name: 'Bird flock', effect: 'Birds cross your path: find a gap', cost: 2 },
+  { id: 'balloon', name: 'Balloon race', effect: 'Wide, slow balloons drift across', cost: 2 },
+  { id: 'movingArms', name: 'Drifting arms', effect: 'The catch arms slide back and forth', cost: 2 },
+  { id: 'fog', name: 'Low cloud', effect: 'A cloud band hides any traffic inside it', cost: 2 },
+  { id: 'hot', name: 'Hot entry', effect: 'Booster arrives faster', cost: 1 },
+  { id: 'shortTank', name: 'Short tank', effect: '30% less fuel', cost: 1, group: 'engine' },
+  { id: 'heavy', name: 'Heavy booster', effect: 'Weaker engine: burn earlier', cost: 1, group: 'engine' },
+  { id: 'downdraft', name: 'Downdraft', effect: 'Stronger gravity: burn earlier', cost: 1, group: 'engine' },
+  { id: 'flare', name: 'Solar flare', effect: 'Instruments black out for a few seconds', cost: 2 },
+  { id: 'sticky', name: 'Sticky valve', effect: 'Engine lights a beat after you press burn', cost: 1 },
+  { id: 'icyFins', name: 'Iced fins', effect: 'Weaker sideways steering', cost: 1 },
+  { id: 'narrow', name: 'Tight arms', effect: 'Catch window shrinks to 2 m', cost: 2 },
+  { id: 'wide', name: 'Wild spawn', effect: 'Starts farther from the tower', cost: 1 },
 ];
 
-/** Difficulty points to spend on twists: none on level 1, then growing to a cap. */
-export function levelBudget(level: number): number {
-  return level === 1 ? 0 : Math.min(C.maxBudget, 1 + Math.floor((level - 1) * C.budgetPerLevel));
+/** Twists stack: every level after the first adds one new twist on top of the last
+ * level's. Once the difficulty budget is full, one old twist rotates out for a new one
+ * (and the speed ramp carries on), so each level is at least as hard as the one before.
+ * Pure in (seed, level), so a crash retries identical conditions. */
+function rollTwists(level: number, seed: number) {
+  const random = mulberry32((seed ^ 0x5eed7157) >>> 0);
+  let picked: Twist[] = [], added: Twist | null = null, removed: Twist | null = null;
+  const cost = (list: Twist[]) => list.reduce((sum, t) => sum + t.cost, 0);
+  const fits = (list: Twist[]) => TWISTS.filter(t => !list.includes(t) && cost(list) + t.cost <= C.maxBudget
+    && !(t.group && list.some(p => p.group === t.group)));
+  for (let l = 2; l <= level; l++) {
+    added = removed = null;
+    let options = fits(picked);
+    if (!options.length) {
+      removed = picked[Math.floor(random() * picked.length)];
+      picked = picked.filter(t => t !== removed);
+      options = fits(picked).filter(t => t !== removed);
+    }
+    added = options[Math.floor(random() * options.length)] ?? null;
+    if (added) picked = [...picked, added];
+  }
+  return { picked, added, removed };
 }
 
-/** Endless levels: level 1 is clean, every later level rolls twists from a seeded RNG,
- * so the same (seed, level) always gives the same conditions (crash retries are fair). */
 export function levelSettings(level: number, seed = 0): LevelSettings {
   if (!Number.isInteger(level) || level < 1) throw new RangeError('level must be a positive integer');
   const random = mulberry32((seed ^ Math.imul(level, 0x9e3779b1)) >>> 0);
-  let budget = levelBudget(level);
-  const picked: Twist[] = [];
-  const pool = [...TWISTS];
-  while (budget > 0) {
-    const options = pool.filter(t => t.cost <= budget && !(t.group && picked.some(p => p.group === t.group)));
-    if (!options.length) break;
-    const twist = options[Math.floor(random() * options.length)];
-    picked.push(twist); pool.splice(pool.indexOf(twist), 1); budget -= twist.cost;
-  }
+  const { picked, added, removed } = rollTwists(level, seed);
   const has = (id: TwistId) => picked.some(t => t.id === id);
   const ramp = Math.min(level, C.rampLevels) - 1;
-  const speedScale = Math.min(C.maxSpeedScale, 1 + Math.max(0, level - C.rampLevels) * C.speedScalePerLevel);
+  const speedScale = Math.min(C.maxSpeedScale, 1 + (level - 1) * C.speedScalePerLevel);
   const startHeight = C.startHeight + ramp * C.heightPerLevel;
   const lanes: HazardLane[] = [];
   // Lanes take distinct shuffled altitude slots so they never overlap.
@@ -89,7 +100,7 @@ export function levelSettings(level: number, seed = 0): LevelSettings {
   }
   const fogBottom = C.fogBottom + random() * C.fogDrift;
   return {
-    level, twists: picked,
+    level, twists: picked, added, removed,
     wind: has('wind') ? C.steadyWind + random() * C.windRange : 0,
     gusts: has('gusts'), flares: has('flare'), lanes, movingArms: has('movingArms'),
     fogBand: has('fog') ? { bottom: fogBottom, top: fogBottom + C.fogTop - C.fogBottom } : null,

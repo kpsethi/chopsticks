@@ -7,7 +7,7 @@ export type ArcadeInput = { left: boolean; right: boolean; burn: boolean };
 export type ArcadeState = 'dropping' | 'celebrate' | 'exploding' | 'gameOver';
 export interface Booster { x: number; y: number; vx: number; vy: number; fuel: number; fuelMax: number; tilt: number; burning: boolean }
 export interface Hazard { readonly lane: number; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly kind: HazardKind }
-export interface LastCatch { dx: number; vy: number; points: number; perfect: boolean }
+export interface LastCatch { dx: number; vy: number; points: number; perfect: boolean; streak: number }
 export type CrashReason = 'arms' | 'speed' | 'tower' | 'ground' | 'hazard';
 /** Event times are simulation seconds, including celebrations and explosions. */
 export type ArcadeEvent = { time: number } & (
@@ -318,7 +318,7 @@ export class ArcadeGame {
     this.catches++; this.streak++;
     const result = catchScore({ dx, vy: this.booster.vy, fuel: this.booster.fuel, fuelMax: this.booster.fuelMax, streak: this.streak });
     this.multiplier = result.multiplier;
-    this.lastCatch = { dx, vy: this.booster.vy, points: result.points, perfect: result.perfect };
+    this.lastCatch = { dx, vy: this.booster.vy, points: result.points, perfect: result.perfect, streak: this.streak };
     this.booster.vx = 0; this.booster.vy = 0;
     this.score += result.points;
     this.emit({ type: 'catch', ...this.lastCatch });

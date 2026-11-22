@@ -21,8 +21,8 @@ Touch supports multiple fingers, so you can slide and burn together. Use the on-
 - **Perfect:** land within 1 m at no more than 2.5 m/s to double the catch score.
 - **Scoring and streaks:** each catch earns 100 base points plus up to 100 each for centring, softness, and remaining fuel. Consecutive catches multiply the score from ×1 to ×5; a crash resets the streak.
 - **Lives:** start with three boosters. Earn an extra life every ten catches, up to five lives. Empty fuel means no more burn for that drop.
-- **Levels:** endless. Every catch is a new level; a crash retries the same level with the same conditions. Level 1 is a clean drop; every later level rolls random twists from a difficulty budget that grows with the level. Drops get higher, faster and leaner on fuel up to level 20, then only faster.
-- **Feedback:** the drop line is green on glide, amber when it's time to burn, red when it's too late. Start burning when the booster's base reaches the red burn line. After a crash, the card shows your speed and offset for the full explosion, and game over lists why each booster was lost.
+- **Levels:** endless. Every catch is a new level; a crash retries the same level with the same conditions. Level 1 is a clean drop; every later level adds one random twist on top of the previous level's, and once the difficulty budget is full an old twist rotates out for a new one. Everything also gets a little faster each level. Active twists and what they do are listed under the score.
+- **Feedback:** the drop line is green on glide, amber when it's time to burn, red when it's too late. Start burning when the booster's base reaches the red burn line. After a crash, the card shows your speed and offset for the full explosion.
 
 | Twist | Effect |
 | --- | --- |

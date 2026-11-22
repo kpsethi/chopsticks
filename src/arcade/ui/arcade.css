@@ -815,14 +815,6 @@ flight input stays locked. */
   pointer-events:none
 }
 
-.losses {
-  margin:0 0 14px;
-  padding-left:20px;
-  text-align:left;
-  font-size:12px;
-  color:#ffb3a6
-}
-.losses li { margin:3px 0 }
 
 #arcade.flare::after {
   content:'';
@@ -834,3 +826,30 @@ flight input stays locked. */
   animation:flare-flicker .12s steps(2,start) infinite
 }
 @keyframes flare-flicker { to { opacity:.6 } }
+
+/* Twist list under the score */
+.mode-tag span { color:#b9c9da; font-size:11px }
+.mode-tag ul { list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:3px; max-width:340px }
+.mode-tag li { font-size:12px; color:#c9d5e1; background:#07112199; padding:2px 7px; border-radius:3px; border-left:2px solid #ffcf9655 }
+.mode-tag li b { color:#ffcf96; font-weight:700; margin-right:4px }
+.mode-tag li.new { border-left-color:#ffcf96; animation:twist-new 1.2s ease-out 3 }
+.mode-tag li.new b::after { content:' NEW'; font-size:9px; color:#071121; background:#ffcf96; padding:0 3px; margin-left:4px; border-radius:2px }
+@keyframes twist-new { from { background:#ffcf9655 } }
+/* Streak heat */
+#multiplier { display:inline-block; transition:color .3s }
+#multiplier[data-heat="2"] { color:#ffe08a }
+#multiplier[data-heat="3"] { color:#ffb347 }
+#multiplier[data-heat="4"] { color:#ff7d45 }
+#multiplier[data-heat="5"] { color:#ff4f5e; text-shadow:0 0 12px #ff4f5e99 }
+#multiplier.bump { animation:streak-bump .45s ease-out }
+@keyframes streak-bump { 30% { transform:scale(1.7) } }
+.popup[data-kind="streak"] strong { color:#ffb347; text-shadow:0 0 24px #ff7d4599 }
+/* Sky warms as levels climb */
+#arcade::before { content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 100%,#ff5a3a,transparent 70%); opacity:calc(var(--heat,0) * .35); transition:opacity 1.5s }
+/* Classic game over */
+.game-over { text-align:center }
+.game-over h2 { font-size:64px; color:#ff816b; margin-bottom:6px }
+.game-over .final-score { justify-content:center }
+.new-best { font-size:20px; font-weight:800; letter-spacing:.1em; color:#ffcf96; animation:cue-blink .5s steps(2,start) 6 }
+.best-line, .level-line { color:#b9c9da; margin:4px 0 }
