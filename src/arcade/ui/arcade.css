@@ -457,36 +457,91 @@ kbd {
   color:#c1cbd7;
   pointer-events:none
 }
-.touch-zones {
+.thumbstick {
+  position:absolute;
+  z-index:3;
+  top:0;
+  left:0;
+  width:0;
+  height:0;
+  pointer-events:none
+}
+.stick-ring {
+  position:absolute;
+  left:-58px;
+  top:-58px;
+  width:116px;
+  height:116px;
+  border-radius:50%;
+  border:1.5px solid #b8cde240;
+  background:radial-gradient(circle,#09162822,#09162866);
+  box-shadow:0 0 24px #040b1866
+}
+.stick-ring i {
+  position:absolute;
+  font-style:normal;
+  font:700 13px/1 var(--display);
+  color:#b8cde255;
+  transition:color .08s,transform .08s
+}
+.stick-up { left:50%; top:9px; transform:translateX(-50%) }
+.stick-left { left:11px; top:50%; transform:translateY(-50%) }
+.stick-right { right:11px; top:50%; transform:translateY(-50%) }
+.stick-knob {
+  position:absolute;
+  left:-22px;
+  top:-22px;
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#eef5ff88,#9eb6cc44);
+  border:1.5px solid #dbe8f699;
+  box-shadow:0 2px 14px #040b1888
+}
+.thumbstick.burning .stick-ring {
+  border-color:#ffc078aa;
+  box-shadow:0 0 28px #ff9d4233
+}
+.thumbstick.burning .stick-up {
+  color:var(--amber);
+  transform:translateX(-50%) scale(1.25)
+}
+.thumbstick.burning .stick-knob {
+  background:radial-gradient(circle at 35% 35%,#fff2d8cc,#ff9b4277);
+  border-color:var(--amber);
+  box-shadow:0 0 20px #ffaa4c88
+}
+.thumbstick.left .stick-left,
+.thumbstick.right .stick-right {
+  color:var(--mint)
+}
+.thumbstick:not(.burning).left .stick-knob,
+.thumbstick:not(.burning).right .stick-knob {
+  border-color:var(--mint);
+  box-shadow:0 0 16px #83efc655
+}
+.touch-hint {
   display:none;
   position:absolute;
   z-index:2;
-  bottom:0;
-  left:0;
-  right:0;
-  height:calc(88px + env(safe-area-inset-bottom));
+  left:50%;
+  bottom:calc(20px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  padding:8px 14px;
+  border-radius:999px;
+  background:#071121c8;
+  border:1px solid #9dbbd733;
+  color:#c6d5e3;
+  font-size:11px;
+  white-space:nowrap;
   pointer-events:none;
-  padding-bottom:env(safe-area-inset-bottom);
-  background:linear-gradient(transparent,#071121d9)
+  transition:opacity .45s ease
 }
-.touch-zones>div {
-  width:33.333%;
-  text-align:center;
-  padding:15px 4px 8px;
-  border-top:1px solid #9dbbd729;
-  border-right:1px solid #9dbbd729;
-  font:28px var(--display);
-  color:#c6d5e3a6
+.touch-hint b {
+  color:var(--amber)
 }
-.touch-zones small {
-  display:block;
-  font:9px 'IBM Plex Mono',monospace;
-  margin-top:4px
-}
-.touch-zones .held {
-  background:#ffc07822;
-  color:var(--amber);
-  border-top-color:var(--amber)
+.touch-hint.used {
+  opacity:0
 }
 #arcade[data-screen=paused] .panel,#arcade[data-screen=help] .panel,#arcade[data-screen=gameOver] .panel {
   justify-content:center;
@@ -536,7 +591,7 @@ kbd {
 }
 .help-controls {
   display:grid;
-  grid-template-columns:70px 1fr;
+  grid-template-columns:108px 1fr;
   gap:12px;
   align-items:center;
   border-block:1px solid #b2c1d42e;
@@ -650,7 +705,7 @@ kbd {
   .hud~.toolbar {
     top:18px
   }
-  .hud:not([hidden])~.toolbar .quiet:first-child {
+  #arcade[data-screen=playing] .toolbar .quiet:first-child {
     display:none
   }
   .quiet {
@@ -701,8 +756,8 @@ kbd {
   }
 }
 @media(pointer:coarse) {
-  .touch-zones:not([hidden]) {
-    display:flex
+  .touch-hint:not([hidden]) {
+    display:block
   }
   .flight-footer {
     display:none!important
@@ -853,3 +908,12 @@ flight input stays locked. */
 .game-over .final-score { justify-content:center }
 .new-best { font-size:20px; font-weight:800; letter-spacing:.1em; color:#ffcf96; animation:cue-blink .5s steps(2,start) 6 }
 .best-line, .level-line { color:#b9c9da; margin:4px 0 }
+.pause-twists { list-style:none; margin:14px 0 0; padding:10px 0 0; border-top:1px solid #b2c1d426; display:flex; flex-direction:column; gap:5px }
+.pause-twists li { font-size:11px; line-height:1.45; color:#c9d5e1 }
+.pause-twists li b { color:var(--amber); margin-right:5px }
+@media(max-width:700px) {
+  .mode-tag ul { flex-direction:row; flex-wrap:wrap; gap:4px; max-width:calc(100vw - 32px) }
+  .mode-tag li { font-size:10px; padding:2px 6px }
+  .mode-tag li:not(.new) .twist-desc { display:none }
+  .mode-tag li.new { flex-basis:100% }
+}

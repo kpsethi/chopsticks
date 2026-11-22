@@ -83,6 +83,9 @@ describe('arcade physics and collisions', () => {
     expect(powered.booster.tilt).toBeGreaterThan(0);
     expect(powered.booster.tilt).toBeLessThanOrEqual(8 * Math.PI / 180);
     expect(left.booster.tilt).toBeLessThan(0);
+    const half = new ArcadeGame({ seed: 1 });
+    half.step(1, { ...idle, right: true, steer: 0.5 });
+    expect(half.booster.vx).toBeCloseTo(right.booster.vx * 0.5, 9);
   });
 
   test.each([
@@ -269,15 +272,20 @@ describe('arcade progression and score', () => {
     expect(game.arms.x).not.toBe(x);
   });
 
-  test('sticky valve delays thrust by the ignition lag', () => {
+  test('sticky valve delays thrust by the ignition lag and reports spooling', () => {
     const level = levelWith(1, s => s.ignitionLag > 0);
     const game = new ArcadeGame({ seed: 1 });
     catches(game, level - 1);
     game.booster.y = 1000;
     game.step(C.stickyLag - 0.05, burn);
     expect(game.booster.burning).toBe(false);
+    expect(game.booster.spooling).toBe(true);
     game.step(0.1, burn);
     expect(game.booster.burning).toBe(true);
+    expect(game.booster.spooling).toBe(false);
+    expect(approach(200, -30, C.burnThrust, C.gravity, C.stickyLag).burnHeight)
+      .toBeGreaterThan(approach(200, -30, C.burnThrust, C.gravity, 0).burnHeight);
+    expect(approach(0.2, -2, C.burnThrust, C.gravity, C.stickyLag).cue).toBe('good');
   });
 
   test('solar flare warns for one second then blacks out instruments', () => {

@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 
 /** Fixed for each drop: no follow, zoom or camera modes during flight. */
 export class ArcadeCamera {
-  readonly camera = new PerspectiveCamera(35, 1, 1, 2400);
+  readonly camera = new PerspectiveCamera(35, 1, 1, 3600);
   private readonly origin = new Vector3();
   private readonly target = new Vector3();
   private readonly projected = new Vector3();

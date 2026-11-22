@@ -3,9 +3,9 @@ import { ARCADE as C } from './constants';
 import { levelSettings, type HazardKind, type HazardLane, type LevelSettings } from './levels';
 import { catchScore } from './score';
 
-export type ArcadeInput = { left: boolean; right: boolean; burn: boolean };
+export type ArcadeInput = { left: boolean; right: boolean; burn: boolean; steer?: number };
 export type ArcadeState = 'dropping' | 'celebrate' | 'exploding' | 'gameOver';
-export interface Booster { x: number; y: number; vx: number; vy: number; fuel: number; fuelMax: number; tilt: number; burning: boolean }
+export interface Booster { x: number; y: number; vx: number; vy: number; fuel: number; fuelMax: number; tilt: number; burning: boolean; spooling: boolean }
 export interface Hazard { readonly lane: number; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly kind: HazardKind }
 export interface LastCatch { dx: number; vy: number; points: number; perfect: boolean; streak: number }
 export type CrashReason = 'arms' | 'speed' | 'tower' | 'ground' | 'hazard';
@@ -51,10 +51,18 @@ export type ApproachCue = 'good' | 'burn' | 'late';
 /** Descent advice from height above the arms and vertical speed, ignoring drag.
  * burnHeight is where a cueMargin-strength burn reaches the arms at cueArrival.
  * 'late' means even a full burn now arrives faster than catchSpeed. */
-export function approach(y: number, vy: number, thrust: number = C.burnThrust, gravity: number = C.gravity): { cue: ApproachCue; burnHeight: number } {
+export function approach(y: number, vy: number, thrust: number = C.burnThrust, gravity: number = C.gravity, ignitionLag = 0): { cue: ApproachCue; burnHeight: number } {
   const h = Math.max(0, y), v = Math.max(0, -vy), full = thrust - gravity, plan = full * C.cueMargin;
-  const burnHeight = Math.max(0, (v * v - C.cueArrival ** 2) / (2 * plan));
-  const cue = v * v > C.catchSpeed ** 2 + 2 * full * h ? 'late' : v * v > C.cueArrival ** 2 + 2 * plan * h ? 'burn' : 'good';
+  const lag = Math.max(0, ignitionLag);
+  const vAfter = v + gravity * lag;
+  const lagDrop = v * lag + 0.5 * gravity * lag * lag;
+  const freeV2 = v * v + 2 * gravity * h;
+  const burnHeight = freeV2 <= C.cueArrival ** 2 ? 0
+    : lagDrop + Math.max(0, (vAfter * vAfter - C.cueArrival ** 2) / (2 * plan));
+  const hAfter = Math.max(0, h - lagDrop);
+  const late = freeV2 > C.catchSpeed ** 2 && (h < lagDrop || vAfter * vAfter > C.catchSpeed ** 2 + 2 * full * hAfter);
+  const needBurn = freeV2 > C.cueArrival ** 2 && (h < lagDrop || vAfter * vAfter > C.cueArrival ** 2 + 2 * plan * hAfter);
+  const cue: ApproachCue = late ? 'late' : needBurn ? 'burn' : 'good';
   return { cue, burnHeight };
 }
 
@@ -71,7 +79,7 @@ export function dailySeed(date: Date): number {
  */
 export class ArcadeGame {
   state: ArcadeState = 'dropping';
-  booster: Booster = { x: 0, y: 0, vx: 0, vy: 0, fuel: 0, fuelMax: 0, tilt: 0, burning: false };
+  booster: Booster = { x: 0, y: 0, vx: 0, vy: 0, fuel: 0, fuelMax: 0, tilt: 0, burning: false, spooling: false };
   arms = { x: 0, closed: false, closing: false };
   wind = { base: 0, gust: 0, warning: false };
   flare = { warning: false, active: false };
@@ -149,7 +157,7 @@ export class ArcadeGame {
     this.state = 'dropping';
     this.phaseTicks = 0;
     this.booster = { x: (this.random() * 2 - 1) * s.startOffset, y: s.startHeight, vx: 0,
-      vy: -s.startSpeed, fuel: s.fuel, fuelMax: s.fuel, tilt: 0, burning: false };
+      vy: -s.startSpeed, fuel: s.fuel, fuelMax: s.fuel, tilt: 0, burning: false, spooling: false };
     this.armPhase = this.random() * 2 * Math.PI;
     this.arms = { x: s.movingArms ? C.armAmplitude * Math.sin(this.armPhase) : 0, closed: false, closing: false };
     this.wind = { base: s.wind * (this.random() < 0.5 ? -1 : 1), gust: 0, warning: false };
@@ -195,7 +203,9 @@ export class ArcadeGame {
     // Sticky valve: thrust only after the button has been held for ignitionLag.
     this.heldTicks = input.burn ? this.heldTicks + 1 : 0;
     const lit = this.heldTicks * C.fixedStep + EPSILON >= this.settings.ignitionLag;
-    const burning = input.burn && lit && this.booster.fuel > EPSILON;
+    const hasFuel = this.booster.fuel > EPSILON;
+    this.booster.spooling = input.burn && !lit && hasFuel;
+    const burning = input.burn && lit && hasFuel;
     this.setBurning(burning);
     // A partially fuelled last tick gets only its remaining seconds of thrust.
     const poweredTime = burning ? Math.min(C.fixedStep, this.booster.fuel) : 0;
@@ -256,7 +266,9 @@ export class ArcadeGame {
   private advance(dt: number, input: ArcadeInput, burning: boolean) {
     const b = this.booster;
     const oldX = b.x, oldY = b.y, oldVy = b.vy, oldArmX = this.arms.x;
-    const side = Number(input.right) - Number(input.left);
+    const side = input.steer !== undefined && Number.isFinite(input.steer)
+      ? Math.max(-1, Math.min(1, input.steer))
+      : Number(input.right) - Number(input.left);
     const ax = side * (burning ? C.burnSidePush : C.sidePush) * this.settings.sideScale + this.wind.base + this.wind.gust;
     const horizontal = integrate(b.x, b.vx, ax, C.sideDrag, dt);
     const vertical = integrate(b.y, b.vy, (burning ? this.settings.thrust : 0) - this.settings.gravity, C.verticalDrag, dt);
@@ -303,6 +315,7 @@ export class ArcadeGame {
 
   private crash(reason: CrashReason) {
     this.setBurning(false);
+    this.booster.spooling = false;
     this.flare = { warning: false, active: false };
     this.state = 'exploding'; this.phaseTicks = 0;
     this.streak = 0; this.multiplier = 1; this.lives--;
@@ -312,6 +325,7 @@ export class ArcadeGame {
 
   private catch(dx: number) {
     this.setBurning(false);
+    this.booster.spooling = false;
     this.flare = { warning: false, active: false };
     this.state = 'celebrate'; this.phaseTicks = 0;
     this.arms.closing = true;

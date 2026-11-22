@@ -11,6 +11,7 @@ export class ArcadeAudio {
   private readonly sources = new Set<AudioScheduledSourceNode>();
   private readonly shots = new Set<AudioScheduledSourceNode>();
   private power = false;
+  private spooling = false;
   private lastBeep = -10;
   private unavailable = false;
   constructor(private muted: boolean) {}
@@ -48,6 +49,12 @@ export class ArcadeAudio {
       this.rumble!.gain.setTargetAtTime(burning ? 0.6 : 0, this.context.currentTime, 0.04);
       this.bass!.gain.setTargetAtTime(burning ? 0.16 : 0, this.context.currentTime, 0.04);
     }
+    const spooling = game.booster.spooling;
+    if (spooling && !this.spooling) {
+      this.burst(0.24, 0.14);
+      this.tone(180, 0.22, 0.06, 0, 320, 'triangle');
+    }
+    this.spooling = spooling;
     if (game.time - this.lastBeep < 0.65 || game.state !== 'dropping') return;
     for (const h of game.hazards) {
       if (Math.abs(h.x - game.booster.x) < 24 && h.y < game.booster.y + 15 && h.y > game.booster.y - 90) {
@@ -71,6 +78,9 @@ export class ArcadeAudio {
       case 'crash': this.burst(1.3, 0.9); this.tone(70, 0.8, 0.45, 0, 20); break;
       case 'gust': this.burst(0.7, 0.2); break;
       case 'gustWarning': this.tone(420, 0.14, 0.09); this.tone(560, 0.14, 0.09, 0.2); break;
+      case 'flareWarning': this.tone(880, 0.12, 0.08, 0, 620); this.tone(620, 0.14, 0.08, 0.16, 440); break;
+      case 'flare': this.burst(0.55, 0.22); this.tone(320, 0.35, 0.09, 0, 90, 'sawtooth'); break;
+      case 'flareEnd': this.tone(520, 0.12, 0.07, 0, 880); break;
       case 'levelUp':
         this.tone(392, 0.25, 0.1, 0.35); this.tone(523.25, 0.25, 0.1, 0.5); this.tone(783.99, 0.4, 0.1, 0.65); break;
       case 'extraLife': this.tone(660, 0.25, 0.12); this.tone(1320, 0.5, 0.12, 0.2); break;
@@ -101,6 +111,7 @@ export class ArcadeAudio {
   }
   silence(): void {
     this.power = false;
+    this.spooling = false;
     if (this.context) {
       this.rumble?.gain.setValueAtTime(0, this.context.currentTime);
       this.bass?.gain.setValueAtTime(0, this.context.currentTime);

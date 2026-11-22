@@ -3,6 +3,7 @@ import { ARCADE as C } from './constants';
 import { ArcadeControls } from './input';
 import { ArcadeStorage } from './storage';
 import { ArcadeAudio } from './audio';
+import { ArcadeHaptics } from './haptics';
 import { ArcadeRenderer } from './render/scene';
 import { ArcadeUI, type Screen } from './ui/screens';
 
@@ -25,6 +26,7 @@ export class ArcadeApp {
   readonly controls = new ArcadeControls();
   private readonly storage = new ArcadeStorage();
   private readonly audio = new ArcadeAudio(this.storage.data.muted);
+  private readonly haptics = new ArcadeHaptics();
   private readonly ui = new ArcadeUI();
   private readonly renderer: ArcadeRenderer;
   private screen: Screen = 'title';
@@ -34,6 +36,7 @@ export class ArcadeApp {
   private bestCatch = 0;
   private announcedLevel = 0;
   private saved = false;
+  private gameOverAt = 0;
   private lastTime = 0;
   private frameId = 0;
   private disposed = false;
@@ -67,9 +70,11 @@ export class ArcadeApp {
     this.lastTime = performance.now();
   }
   private show(screen: Screen): void {
-    this.screen = screen; this.controls.clear(); this.ui.holds(false, false, false);
+    this.screen = screen; this.controls.clear(); this.ui.stick(null);
+    if (screen === 'gameOver') this.gameOverAt = performance.now();
     if (screen !== 'playing') this.audio.silence(); else this.audio.resume();
-    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game);
+    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game,
+      { longestStreak: this.longestStreak, bestCatch: this.bestCatch });
     if (screen === 'playing') (document.activeElement as HTMLElement | null)?.blur();
   }
   private menu(): void {
@@ -96,9 +101,9 @@ export class ArcadeApp {
       if (this.screen === 'gameOver') this.menu(); else this.toggleMute();
     } else if (event.code === 'Escape' || event.code === 'KeyP') {
       if (this.screen === 'help') this.show(this.helpReturn); else this.togglePause();
-    } else if (event.code === 'Space') {
+    } else if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
       if (this.screen === 'title') this.start();
-      else if (this.screen === 'gameOver') this.start(this.game.daily);
+      else if (this.screen === 'gameOver' && performance.now() - this.gameOverAt >= 450) this.start(this.game.daily);
       else if (this.screen === 'paused') this.togglePause();
     }
   };
@@ -110,7 +115,7 @@ export class ArcadeApp {
   private readonly click = (event: MouseEvent): void => {
     const button = (event.target as Element).closest<HTMLButtonElement>('button[data-action]');
     if (!button) {
-      if (this.screen === 'gameOver') this.start(this.game.daily);
+      if (this.screen === 'gameOver' && performance.now() - this.gameOverAt >= 450) this.start(this.game.daily);
       return;
     }
     this.audio.unlock();
@@ -129,21 +134,32 @@ export class ArcadeApp {
     if (this.screen !== 'playing') return;
     event.preventDefault(); this.audio.unlock();
     this.ui.surface.setPointerCapture(event.pointerId);
-    this.controls.pointer(event.pointerId, event.clientX, window.innerWidth);
+    this.controls.pointerDown(event.pointerId, event.clientX, event.clientY);
+    this.ui.stick(this.controls.activeStick());
   };
   private readonly pointermove = (event: PointerEvent): void => {
     if (this.controls.hasPointer(event.pointerId)) {
-      event.preventDefault(); this.controls.pointer(event.pointerId, event.clientX, window.innerWidth);
+      event.preventDefault();
+      const prevBurn = this.controls.input.burn;
+      const prevDir = Number(this.controls.input.right) - Number(this.controls.input.left);
+      this.controls.pointerMove(event.pointerId, event.clientX, event.clientY);
+      this.ui.stick(this.controls.activeStick());
+      const nextDir = Number(this.controls.input.right) - Number(this.controls.input.left);
+      if (this.controls.input.burn && !prevBurn) this.haptics.burn();
+      else if (nextDir !== prevDir && nextDir !== 0) this.haptics.step();
     }
   };
-  private readonly pointerup = (event: PointerEvent): void => { this.controls.releasePointer(event.pointerId); };
+  private readonly pointerup = (event: PointerEvent): void => {
+    this.controls.releasePointer(event.pointerId);
+    this.ui.stick(this.controls.activeStick());
+  };
   private readonly blur = (): void => {
     this.controls.clear(); if (this.screen === 'playing') this.show('paused');
   };
   private readonly visibility = (): void => { if (document.hidden) this.blur(); this.lastTime = performance.now(); };
   private readonly resize = (): void => { this.renderer.resize(); };
   private event(event: ArcadeEvent): void {
-    this.renderer.event(event); this.audio.event(event);
+    this.renderer.event(event); this.audio.event(event); this.haptics.event(event);
     switch (event.type) {
       case 'spawn':
         this.ui.clearPopup(); // the crash card never covers a fresh drop
@@ -177,7 +193,7 @@ export class ArcadeApp {
       const events = this.game.step(dt, this.controls.input);
       for (let i = 0; i < events.length; i++) this.event(events[i]);
       this.audio.update(this.game);
-      this.ui.holds(this.controls.input.left, this.controls.input.burn, this.controls.input.right);
+      this.ui.stick(this.controls.activeStick());
     }
     const preview = this.screen === 'title' || (this.screen === 'help' && this.helpReturn === 'title');
     this.renderer.render(this.game, this.screen === 'playing' || preview ? dt : 0, preview);

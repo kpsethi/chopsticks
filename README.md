@@ -6,14 +6,14 @@ Seventy metres of steel. One soft landing. CHOPSTICKS is a three-button arcade g
 
 | Input | Action |
 | --- | --- |
-| Hold ← / → | Slide left / right |
-| Hold Space | Burn to slow your descent; consumes fuel |
+| Hold ← / → or A / D | Slide left / right |
+| Hold ↑, W, or Space | Burn to slow your descent; consumes fuel |
 | P / Esc | Pause / resume |
-| Space on title / game over | Start / retry |
+| Space / ↑ / W on title / game over | Start / retry |
 | M | Mute / unmute; return to menu from game over |
-| Touch: hold left / middle / right third | Slide left / burn / slide right |
+| Touch / drag anywhere | Floating thumbstick: drag ← / → to slide, push ↑ to burn (diagonals do both) |
 
-Touch supports multiple fingers, so you can slide and burn together. Use the on-screen buttons to pause, mute, or open help; tap after game over to retry.
+Touch and drag works anywhere on screen with one thumb (with a follow-leash so reversing direction or cutting burn is instant, plus subtle haptics on supported devices). Use the on-screen buttons to pause, mute, or open help; tap after game over to retry.
 
 ## Rules
 
