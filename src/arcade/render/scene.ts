@@ -3,7 +3,7 @@ import { AmbientLight, BoxGeometry, BufferAttribute, BufferGeometry, Color, Dire
   Object3D, PlaneGeometry, PMREMGenerator, Points, PointsMaterial, Scene, ShaderMaterial, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ARCADE as C } from '../constants';
-import type { ArcadeEvent, ArcadeGame } from '../game';
+import { approach, type ArcadeEvent, type ArcadeGame } from '../game';
 import { ArcadeCamera } from './camera';
 import { BoosterMesh, TowerMesh } from './meshes';
 import { Effects } from './effects';
@@ -17,7 +17,9 @@ export class ArcadeRenderer {
   private readonly booster = new BoosterMesh();
   private readonly effects = new Effects(this.booster.group);
   private readonly hazards = new Hazards();
-  private readonly guide = new Mesh(new BoxGeometry(0.22, 1, 0.2), new MeshBasicMaterial({ color: 0x73929f, transparent: true, opacity: 0.5 }));
+  private readonly guideMaterial = new MeshBasicMaterial({ color: 0x73929f, transparent: true, opacity: 0.7, toneMapped: false });
+  private readonly guide = new Mesh(new BoxGeometry(1, 1, 0.2), this.guideMaterial);
+  private readonly burnLine = new Mesh(new BoxGeometry(26, 3, 0.3), new MeshBasicMaterial({ color: 0xff6a4d, transparent: true, opacity: 0.9, toneMapped: false }));
   private readonly markerMaterial = new MeshBasicMaterial({ color: 0xffc171, toneMapped: false });
   private readonly marker = new Group();
   private readonly fog: Mesh<PlaneGeometry, ShaderMaterial>;
@@ -37,11 +39,12 @@ export class ArcadeRenderer {
     const moon = new DirectionalLight(0xb7d4ff, 3.5); moon.position.set(-80, 220, 140);
     const warm = new DirectionalLight(0xffb162, 2.5); warm.position.set(-70, -30, 80);
     this.scene.add(moon, warm, new HemisphereLight(0x8ba9db, 0x1a2435, 2), new AmbientLight(0x617590, 0.6));
-    this.scene.add(this.tower.group, this.booster.group, this.effects.explosion, this.hazards.group, this.guide, this.marker);
-    for (const x of [-6, 6]) {
-      const mark = new Mesh(new BoxGeometry(0.6, 6, 0.5), this.markerMaterial); mark.position.set(x, 2, 5); this.marker.add(mark);
+    this.scene.add(this.tower.group, this.booster.group, this.effects.explosion, this.hazards.group, this.guide, this.burnLine, this.marker);
+    // Brackets span the catch window for the pins' centre.
+    for (const x of [-C.catchOffset, C.catchOffset]) {
+      const mark = new Mesh(new BoxGeometry(0.8, 7, 0.5), this.markerMaterial); mark.position.set(x, 2.5, 5); this.marker.add(mark);
     }
-    const line = new Mesh(new BoxGeometry(12, 0.65, 0.5), this.markerMaterial); line.position.set(0, -1, 5); this.marker.add(line);
+    const line = new Mesh(new BoxGeometry(C.catchOffset * 2, 0.8, 0.5), this.markerMaterial); line.position.set(0, -1, 5); this.marker.add(line);
     this.buildCoast();
     const stars = new Float32Array(260 * 3);
     for (let i = 0; i < stars.length; i += 3) {
@@ -100,7 +103,12 @@ export class ArcadeRenderer {
     this.effects.update(dt, game.time, game.booster.burning || preview);
     const b = game.booster;
     this.guide.visible = game.state === 'dropping';
-    this.guide.position.set(b.x, Math.max(0, b.y) / 2, -2); this.guide.scale.y = Math.max(0.01, b.y);
+    this.guide.position.set(b.x, Math.max(0, b.y) / 2, 2); this.guide.scale.y = Math.max(0.01, b.y);
+    const cue = approach(b.y, b.vy);
+    this.guideMaterial.color.setHex(cue.cue === 'good' ? 0x75f4c5 : cue.cue === 'burn' ? 0xffb347 : 0xff5a45);
+    // The burn line marks where the pins should be when the burn starts; it rides up as speed grows.
+    this.burnLine.visible = this.guide.visible && !b.burning && cue.burnHeight > 2 && cue.burnHeight < b.y;
+    this.burnLine.position.set(b.x, cue.burnHeight, 3);
     this.marker.position.x = game.arms.x;
     this.markerMaterial.color.setHex(Math.abs(b.x - game.arms.x) <= C.catchOffset ? 0x75f4c5 : 0xffc171);
     this.fog.visible = !!game.fogBand;

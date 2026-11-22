@@ -16,10 +16,12 @@ export const ARCADE = {
   halfWidth: 4.5, // m, booster
   belowPins: 61, // m, body below contact pins
   abovePins: 9, // m, nose above contact pins
-  catchOffset: 1.5, // m, inclusive
-  catchSpeed: 3, // m/s downward, inclusive
-  perfectOffset: 0.4, // m, inclusive
-  perfectSpeed: 1, // m/s downward, inclusive
+  catchOffset: 3.5, // m, inclusive
+  catchSpeed: 7, // m/s downward, inclusive
+  perfectOffset: 1, // m, inclusive
+  perfectSpeed: 2.5, // m/s downward, inclusive
+  cueMargin: 0.7, // fraction of full-burn deceleration the burn cue plans with
+  cueArrival: 3, // m/s, arrival speed the burn cue aims for
   worldHalfWidth: 80, // m, horizontal playfield (body kept inside)
   groundY: -90, // m relative to arm tops
   towerX: -42, // m, column centre
@@ -30,7 +32,7 @@ export const ARCADE = {
   extraLifeCatches: 10, // catches per extra life
   catchesPerLevel: 3, // catches
   celebrateTime: 1.2, // s
-  explodeTime: 1.5, // s
+  explodeTime: 2.2, // s
   armCloseTime: 0.15, // s
   basePoints: 100, // points
   centeringPoints: 100, // maximum points

@@ -333,6 +333,24 @@ kbd {
 .speed.soft {
   color:var(--mint)
 }
+.cue {
+  font-style:normal;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.08em;
+  color:var(--mint)
+}
+.cue[data-cue="burn"] {
+  color:#ffb347;
+  animation:cue-blink .35s steps(2,start) infinite
+}
+.cue[data-cue="late"] {
+  color:#ff5a45
+}
+@keyframes cue-blink { to { opacity:.35 } }
+.help-card .ok { color:var(--mint) }
+.help-card .warn { color:#ffb347 }
+.help-card .bad { color:#ff5a45 }
 .fuel-number {
   font-size:9px;
   color:#bdcbd9
@@ -794,3 +812,39 @@ flight input stays locked. */
 .mode-tag,.wind-alert,.extra-life {
   pointer-events:none
 }
+
+.debrief {
+  position:absolute;
+  z-index:3;
+  left:50%;
+  bottom:calc(100px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  max-width:calc(100vw - 32px);
+  padding:7px 12px;
+  border-radius:4px;
+  background:#091527e6;
+  border-left:3px solid var(--mint);
+  font-size:12px;
+  color:#d5e1ec;
+  display:flex;
+  gap:8px;
+  pointer-events:none
+}
+.debrief[data-kind="crash"] {
+  border-left-color:#ff5a45
+}
+.debrief b {
+  white-space:nowrap;
+  color:var(--mint)
+}
+.debrief[data-kind="crash"] b {
+  color:#ff816b
+}
+.losses {
+  margin:0 0 14px;
+  padding-left:20px;
+  text-align:left;
+  font-size:12px;
+  color:#ffb3a6
+}
+.losses li { margin:3px 0 }

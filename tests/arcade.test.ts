@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { ARCADE as C } from '../src/arcade/constants';
-import { ArcadeGame, dailySeed, type ArcadeInput } from '../src/arcade/game';
+import { ArcadeGame, approach, dailySeed, type ArcadeInput } from '../src/arcade/game';
 import { levelSettings } from '../src/arcade/levels';
 import { catchScore } from '../src/arcade/score';
 
@@ -82,9 +82,9 @@ describe('arcade physics and collisions', () => {
   });
 
   test.each([
-    [0, -0.5, 'catch', true], [1.4, -2.8, 'catch', false],
-    [0.41, -0.5, 'catch', false], [0, -1.1, 'catch', false],
-    [0, -3.1, 'crash', false], [1.51, -0.5, 'crash', false],
+    [0, -0.5, 'catch', true], [3.4, -6.8, 'catch', false],
+    [1.01, -0.5, 'catch', false], [0, -2.6, 'catch', false],
+    [0, -7.1, 'crash', false], [3.51, -0.5, 'crash', false],
   ] as const)('contact dx=%s vy=%s gives %s', (dx, vy, type, perfect) => {
     const game = new ArcadeGame({ seed: 1 });
     const events = contact(game, dx, vy);
@@ -98,13 +98,28 @@ describe('arcade physics and collisions', () => {
     }
   });
 
+  test('approach cue: coasting high is good, fast and low says burn, hopeless says late', () => {
+    expect(approach(300, -30).cue).toBe('good');
+    expect(approach(40, -30).cue).toBe('burn');
+    expect(approach(10, -30).cue).toBe('late');
+    expect(approach(0, -2).cue).toBe('good');
+    const { burnHeight } = approach(200, -30);
+    expect(approach(burnHeight + 1, -30).cue).toBe('good');
+    expect(approach(burnHeight - 1, -30).cue).toBe('burn');
+  });
+
+  test('crash events report offset and speed', () => {
+    const game = new ArcadeGame({ seed: 1 });
+    expect(contact(game, 0, -12)).toContainEqual(expect.objectContaining({ type: 'crash', reason: 'speed', speed: expect.closeTo(12, 1), offset: expect.closeTo(0, 3) }));
+  });
+
   test('a tower column collision occurs before pin contact', () => {
     const game = new ArcadeGame({ seed: 1 });
     Object.assign(game.booster, { x: C.towerX, y: 50, vx: 0, vy: -1 });
     expect(game.step(tick, idle)).toContainEqual(expect.objectContaining({ type: 'crash', reason: 'tower' }));
   });
 
-  test.each([[1.5, -3, false], [0.4, -1, true]] as const)(
+  test.each([[3.5, -7, false], [1, -2.5, true]] as const)(
     'catch boundaries are inclusive at dx=%s, vy=%s', (dx, vy, perfect) => {
       const game = new ArcadeGame({ seed: 1 });
       Object.assign(game.booster, { x: dx, y: 0, vx: 0, vy });
@@ -142,7 +157,7 @@ describe('arcade physics and collisions', () => {
     expect(game.arms.closed).toBe(true);
     expect(game.step(tick, idle).some(e => e.type === 'spawn')).toBe(true);
     contact(game, 10);
-    game.step(1.5 - tick, idle);
+    game.step(C.explodeTime - tick, idle);
     expect(game.state).toBe('exploding');
     expect(game.step(tick, idle).some(e => e.type === 'spawn')).toBe(true);
   });
@@ -150,10 +165,10 @@ describe('arcade physics and collisions', () => {
 
 describe('arcade progression and score', () => {
   test('score combines base, linear centering, softness, fuel, perfect and capped streak', () => {
-    expect(catchScore({ dx: 1.5, vy: -3, fuel: 0, fuelMax: 7, streak: 1 })).toEqual({ points: 100, perfect: false, multiplier: 1 });
-    expect(catchScore({ dx: 0.75, vy: -1.5, fuel: 3.5, fuelMax: 7, streak: 2 }).points).toBe(500);
+    expect(catchScore({ dx: 3.5, vy: -7, fuel: 0, fuelMax: 7, streak: 1 })).toEqual({ points: 100, perfect: false, multiplier: 1 });
+    expect(catchScore({ dx: 1.75, vy: -3.5, fuel: 3.5, fuelMax: 7, streak: 2 }).points).toBe(500);
     expect(catchScore({ dx: 0, vy: 0, fuel: 7, fuelMax: 7, streak: 1 }).points).toBe(800);
-    expect(catchScore({ dx: 0.4, vy: -1, fuel: 0, fuelMax: 7, streak: 9 })).toEqual({ points: 2400, perfect: true, multiplier: 5 });
+    expect(catchScore({ dx: 1, vy: -2.5, fuel: 0, fuelMax: 7, streak: 9 })).toEqual({ points: 2357, perfect: true, multiplier: 5 });
   });
 
   test('score is awarded once, streak caps at five and resets on crash', () => {
@@ -188,7 +203,7 @@ describe('arcade progression and score', () => {
     for (let i = 0; i < 3; i++) {
       contact(game, 10);
       expect(game.lives).toBe(2 - i);
-      const events = game.step(1.5, idle);
+      const events = game.step(C.explodeTime, idle);
       expect(events.some(e => e.type === 'gameOver')).toBe(i === 2);
     }
     expect(game.state).toBe('gameOver');

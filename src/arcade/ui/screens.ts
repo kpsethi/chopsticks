@@ -1,4 +1,4 @@
-import type { ArcadeGame } from '../game';
+import { approach, type ArcadeGame } from '../game';
 import type { ArcadeStorage } from '../storage';
 import type { ArcadeCamera } from '../render/camera';
 import { ARCADE as C } from '../constants';
@@ -20,6 +20,7 @@ export class ArcadeUI {
   private readonly mode: HTMLElement;
   private readonly telemetry: HTMLElement;
   private readonly speed: HTMLElement;
+  private readonly cue: HTMLElement;
   private readonly fuel: HTMLElement;
   private readonly fuelNumber: HTMLElement;
   private readonly alignment: HTMLElement;
@@ -27,12 +28,13 @@ export class ArcadeUI {
   private readonly popupTitle: HTMLElement;
   private readonly popupDetail: HTMLElement;
   private readonly wind: HTMLElement;
+  private readonly debriefBox: HTMLElement;
   private readonly mute: HTMLButtonElement;
   private readonly pause: HTMLButtonElement;
   private readonly zones: HTMLElement[];
   private screen: Screen = 'title';
   private lastScore = -1; private lastLives = -1; private lastLevel = -1; private lastMultiplier = -1;
-  private lastSpeed = ''; private lastFuel = -1;
+  private lastSpeed = ''; private lastFuel = -1; private lastCue = '';
   private popupUntil = 0;
   private gustDirection = 1;
   private updateTime = -1;
@@ -51,10 +53,11 @@ export class ArcadeUI {
       <div class="mode-tag" hidden></div>
       <div class="toolbar"><button data-action="mute" class="quiet" aria-label="Mute sound">Sound on</button><button data-action="pause" class="quiet" aria-label="Pause game" hidden>Ⅱ</button></div>
       <section class="panel"></section>
-      <div class="telemetry" hidden><div class="fuel-track"><i></i></div><div class="flight-readout"><b class="speed"></b><span class="fuel-number"></span></div></div>
+      <div class="telemetry" hidden><div class="fuel-track"><i></i></div><div class="flight-readout"><em class="cue"></em><b class="speed"></b><span class="fuel-number"></span></div></div>
       <div class="alignment" hidden></div>
       <div class="popup" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
       <div class="wind-alert" role="status" hidden></div>
+      <div class="debrief" role="status" hidden><b></b><span></span></div>
       <div class="extra-life" role="status" hidden>+1 booster</div>
       <div class="touch-zones" hidden><div>←<small>Slide</small></div><div>↑<small>Hold to burn</small></div><div>→<small>Slide</small></div></div>
       <footer class="flight-footer" hidden><span>← → slide</span><span>Hold <kbd>SPACE</kbd> to burn</span><span><kbd>P</kbd> pause · <kbd>M</kbd> sound</span></footer>`;
@@ -62,10 +65,10 @@ export class ArcadeUI {
     this.surface = get('.flight-surface'); this.panel = get('.panel'); this.hud = get('.hud');
     this.score = get('#score'); this.multiplier = get('#multiplier'); this.level = get('#level');
     this.lives = get('#lives'); this.best = get('#best'); this.mode = get('.mode-tag');
-    this.telemetry = get('.telemetry'); this.speed = get('.speed'); this.fuel = get('.fuel-track i');
+    this.telemetry = get('.telemetry'); this.speed = get('.speed'); this.cue = get('.cue'); this.fuel = get('.fuel-track i');
     this.fuelNumber = get('.fuel-number'); this.alignment = get('.alignment');
     this.popup = get('.popup'); this.popupTitle = get('.popup strong'); this.popupDetail = get('.popup span');
-    this.wind = get('.wind-alert'); this.mute = get('[data-action="mute"]'); this.pause = get('[data-action="pause"]');
+    this.wind = get('.wind-alert'); this.debriefBox = get('.debrief'); this.mute = get('[data-action="mute"]'); this.pause = get('[data-action="pause"]');
     this.zones = Array.from(this.root.querySelectorAll('.touch-zones > div'));
     document.body.append(this.root);
   }
@@ -74,7 +77,7 @@ export class ArcadeUI {
     this.mute.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
     this.mute.setAttribute('aria-pressed', String(muted));
   }
-  show(screen: Screen, storage: ArcadeStorage, date: string, game: ArcadeGame, longestStreak = 0, bestCatch = 0): void {
+  show(screen: Screen, storage: ArcadeStorage, date: string, game: ArcadeGame, longestStreak = 0, bestCatch = 0, losses: readonly string[] = []): void {
     this.screen = screen; this.root.dataset.screen = screen;
     const playing = screen === 'playing';
     this.hud.hidden = screen === 'title' || screen === 'help';
@@ -84,6 +87,7 @@ export class ArcadeUI {
     this.root.querySelector<HTMLElement>('.touch-zones')!.hidden = !playing;
     this.root.querySelector<HTMLElement>('.flight-footer')!.hidden = !playing;
     if (!playing) { this.popup.hidden = true; this.wind.hidden = true; }
+    this.debriefBox.hidden = !playing || !this.debriefBox.dataset.kind;
     this.best.textContent = number(game.daily ? storage.dailyBest(date) : storage.data.bestScore);
     this.mode.textContent = game.daily ? `Daily · ${date} UTC` : 'Free flight';
     if (screen === 'title') {
@@ -104,7 +108,8 @@ export class ArcadeUI {
         <p>Drop the booster’s pins onto the glowing arms. They close automatically.</p>
         <div class="help-controls"><b>← →</b><span>Slide sideways</span><b>SPACE</b><span>Hold to burn. Fuel is limited.</span></div>
         <p class="touch-help">Touch: hold the left, middle, or right third of the screen. Use two fingers to slide and burn.</p>
-        <p><b>Catch:</b> within 1.5 m of centre, descending at 3 m/s or less.<br><b>Perfect:</b> within 0.4 m, at 1 m/s or less.</p>
+        <p><b>Catch:</b> within ${C.catchOffset} m of centre, descending at ${C.catchSpeed} m/s or less.<br><b>Perfect:</b> within ${C.perfectOffset} m, at ${C.perfectSpeed} m/s or less.</p>
+        <p>The drop line turns <b class="ok">green</b> when you’re on glide, <b class="warn">amber</b> when it’s time to burn, <b class="bad">red</b> when you’re too fast. Start burning when the booster reaches the red burn line.</p>
         <p>Avoid the tower and traffic. Every three catches adds a new challenge.</p><button class="primary" data-action="back">GOT IT <span>↗</span></button></div>`;
     } else if (screen === 'gameOver') {
       this.panel.innerHTML = `<div class="modal-card results-card"><p class="site-line">${game.daily ? 'Daily challenge · ' + date : 'All boosters expended'}</p>
@@ -112,6 +117,7 @@ export class ArcadeUI {
         <dl class="results"><div><dt>${game.daily ? "Today’s best" : 'Personal best'}</dt><dd>${number(game.daily ? storage.dailyBest(date) : storage.data.bestScore)}</dd></div>
         <div><dt>Level reached</dt><dd>${String(game.level).padStart(2, '0')}</dd></div><div><dt>Longest streak</dt><dd>${longestStreak}</dd></div>
         <div><dt>Best catch</dt><dd>${number(bestCatch)} <small>pts</small></dd></div></dl>
+        ${losses.length ? `<ol class="losses">${losses.map(l => `<li>${l}</li>`).join('')}</ol>` : ''}
         <button class="primary" data-action="retry">GO AGAIN <span>↗</span></button><button class="text-button" data-action="menu">Back to menu</button>
         <p class="hint">SPACE / tap to retry · M for menu</p></div>`;
     }
@@ -122,6 +128,11 @@ export class ArcadeUI {
     this.popup.dataset.kind = kind; this.popup.hidden = false; this.popupUntil = time + duration;
     this.popup.classList.remove('arrive'); void this.popup.offsetWidth; this.popup.classList.add('arrive');
   }
+  /** Result of the last drop; stays up until the next catch or crash. */
+  debrief(kind: 'catch' | 'crash', title: string, detail: string): void {
+    this.debriefBox.dataset.kind = kind; this.debriefBox.hidden = this.screen !== 'playing';
+    this.debriefBox.querySelector('b')!.textContent = title; this.debriefBox.querySelector('span')!.textContent = detail;
+  }
   gust(acceleration: number): void { this.gustDirection = Math.sign(acceleration); }
   extraLife(): void {
     const element = this.root.querySelector<HTMLElement>('.extra-life')!;
@@ -130,7 +141,7 @@ export class ArcadeUI {
   holds(left: boolean, burn: boolean, right: boolean): void {
     this.zones[0].classList.toggle('held', left); this.zones[1].classList.toggle('held', burn); this.zones[2].classList.toggle('held', right);
   }
-  reset(): void { this.updateTime = -1; this.lastScore = this.lastLives = this.lastLevel = this.lastMultiplier = -1; this.popup.hidden = true; }
+  reset(): void { this.debriefBox.hidden = true; delete this.debriefBox.dataset.kind; this.updateTime = -1; this.lastScore = this.lastLives = this.lastLevel = this.lastMultiplier = -1; this.popup.hidden = true; }
   update(game: ArcadeGame, view: ArcadeCamera): void {
     if (this.screen !== 'playing') return;
     if (game.time >= this.popupUntil) this.popup.hidden = true;
@@ -148,6 +159,9 @@ export class ArcadeUI {
     const speed = `${Math.abs(b.vy).toFixed(1)} ${b.vy > 0 ? '↑' : '↓'}`;
     if (speed !== this.lastSpeed) { this.speed.textContent = speed; this.lastSpeed = speed; }
     this.speed.classList.toggle('soft', soft);
+    const { cue } = approach(b.y, b.vy);
+    const label = b.vy > 0 ? 'EASE OFF' : cue === 'good' ? (soft ? 'SOFT ✓' : 'ON GLIDE') : cue === 'burn' ? (b.burning ? 'BURNING' : 'BURN!') : 'TOO FAST';
+    if (label !== this.lastCue) { this.cue.textContent = label; this.cue.dataset.cue = b.vy > 0 ? 'burn' : cue; this.lastCue = label; }
     const fuel = Math.round(b.fuel / b.fuelMax * 100);
     if (fuel !== this.lastFuel) {
       this.fuel.style.transform = `scaleY(${fuel / 100})`;

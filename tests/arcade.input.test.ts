@@ -51,7 +51,7 @@ vi.mock('../src/arcade/ui/screens', () => ({
     constructor() { presentation.surface = this.surface; }
     setMuted(value: boolean) { presentation.muted = value; }
     show(screen: string) { presentation.screen = screen; presentation.shows++; }
-    holds() {} reset() {} update() {} announce() {} gust() {} extraLife() {}
+    holds() {} reset() {} update() {} announce() {} gust() {} extraLife() {} debrief() {}
   },
 }));
 

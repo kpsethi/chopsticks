@@ -1,14 +1,21 @@
 import { ArcadeGame, dailySeed, type ArcadeEvent } from './game';
+import { ARCADE as C } from './constants';
 import { ArcadeControls } from './input';
 import { ArcadeStorage } from './storage';
 import { ArcadeAudio } from './audio';
 import { ArcadeRenderer } from './render/scene';
 import { ArcadeUI, LEVEL_NAMES, type Screen } from './ui/screens';
 
-const crashMessages = {
-  arms: 'Line the pins up with the glowing marker.', speed: 'Too fast. Start your burn earlier.',
-  tower: 'Watch the tower. Slide toward the marker.', ground: 'Missed the arms. Aim for the glowing marker.',
-  hazard: 'Traffic collision. Find a gap in the lane.',
+const crashMessage = (e: Extract<ArcadeEvent, { type: 'crash' }>) => {
+  if (e.reason === 'arms' || e.reason === 'speed') {
+    const faults = [];
+    if (e.speed > C.catchSpeed) faults.push(`Too fast: ${e.speed.toFixed(1)} m/s (max ${C.catchSpeed})`);
+    if (e.offset > C.catchOffset) faults.push(`${faults.length ? 'and' : 'Off centre:'} ${e.offset.toFixed(1)} m (max ${C.catchOffset})`);
+    const tip = e.speed > C.catchSpeed ? 'Start burning at the red line.' : 'Stay between the brackets.';
+    return `${faults.join(' ')}. ${tip}`;
+  }
+  return e.reason === 'tower' ? 'Clipped the tower. Slide toward the brackets.'
+    : e.reason === 'ground' ? 'Missed the arms. Aim for the brackets.' : 'Traffic collision. Find a gap in the lane.';
 };
 function randomSeed(): number { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 const today = () => new Date().toISOString().slice(0, 10);
@@ -25,6 +32,8 @@ export class ArcadeApp {
   private runDate = today();
   private longestStreak = 0;
   private bestCatch = 0;
+  private losses: string[] = [];
+  private announcedLevel = 0;
   private saved = false;
   private lastTime = 0;
   private frameId = 0;
@@ -53,7 +62,7 @@ export class ArcadeApp {
     this.audio.unlock(); this.audio.silence(); this.audio.resume(); this.controls.clear();
     this.runDate = today();
     this.game = new ArcadeGame({ seed: daily ? dailySeed(new Date(this.runDate)) : randomSeed(), daily });
-    this.longestStreak = this.bestCatch = 0; this.saved = false;
+    this.longestStreak = this.bestCatch = 0; this.saved = false; this.losses = []; this.announcedLevel = 0;
     this.ui.reset(); this.show('playing');
     for (const event of this.game.step(0, this.controls.input)) this.event(event);
     this.lastTime = performance.now();
@@ -61,7 +70,7 @@ export class ArcadeApp {
   private show(screen: Screen): void {
     this.screen = screen; this.controls.clear(); this.ui.holds(false, false, false);
     if (screen !== 'playing') this.audio.silence(); else this.audio.resume();
-    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game, this.longestStreak, this.bestCatch);
+    this.ui.show(screen, this.storage, screen === 'title' ? today() : this.runDate, this.game, this.longestStreak, this.bestCatch, this.losses);
     if (screen === 'playing') (document.activeElement as HTMLElement | null)?.blur();
   }
   private menu(): void {
@@ -138,13 +147,22 @@ export class ArcadeApp {
     this.renderer.event(event); this.audio.event(event);
     switch (event.type) {
       case 'spawn':
-        this.ui.announce(`LEVEL ${event.level}`, LEVEL_NAMES[Math.min(9, event.level - 1)], event.time, 1.1); break;
+        // Only announce new levels so the last crash reason is not covered up.
+        if (event.level !== this.announcedLevel) {
+          this.announcedLevel = event.level;
+          this.ui.announce(`LEVEL ${event.level}`, LEVEL_NAMES[Math.min(9, event.level - 1)], event.time, 1.1);
+        }
+        break;
       case 'catch':
         this.longestStreak = Math.max(this.longestStreak, this.game.streak);
         this.bestCatch = Math.max(this.bestCatch, event.points);
-        this.ui.announce(event.perfect ? 'PERFECT!' : 'CAUGHT!', `+${event.points}  ·  STREAK ×${this.game.multiplier}`, event.time, 1.2, 'catch'); break;
+        this.ui.announce(event.perfect ? 'PERFECT!' : 'CAUGHT!', `+${event.points}  ·  STREAK ×${this.game.multiplier}`, event.time, 1.2, 'catch');
+        this.ui.debrief('catch', event.perfect ? 'Last: PERFECT' : 'Last: caught',
+          `${(-event.vy).toFixed(1)} m/s · ${Math.abs(event.dx).toFixed(1)} m off · +${event.points}`); break;
       case 'crash':
-        this.ui.announce('BOOSTER LOST', crashMessages[event.reason], event.time, 1.5, 'crash'); break;
+        this.ui.announce('BOOSTER LOST', crashMessage(event), event.time, C.explodeTime, 'crash');
+        this.ui.debrief('crash', 'Last: lost', crashMessage(event));
+        this.losses.push(crashMessage(event)); break;
       case 'extraLife': this.ui.extraLife(); break;
       case 'gustWarning': case 'gust': this.ui.gust(event.acceleration); break;
       case 'fuelOut': this.ui.announce('FUEL EMPTY', 'Make the glide count.', event.time, 0.9); break;

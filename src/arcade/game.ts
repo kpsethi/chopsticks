@@ -13,7 +13,7 @@ export type CrashReason = 'arms' | 'speed' | 'tower' | 'ground' | 'hazard';
 export type ArcadeEvent = { time: number } & (
   | { type: 'spawn'; level: number; x: number; y: number }
   | ({ type: 'catch' | 'perfect' } & LastCatch)
-  | { type: 'crash'; reason: CrashReason; x: number; y: number }
+  | { type: 'crash'; reason: CrashReason; x: number; y: number; offset: number; speed: number }
   | { type: 'levelUp'; level: number }
   | { type: 'extraLife'; lives: number }
   | { type: 'gameOver'; score: number; level: number }
@@ -44,6 +44,17 @@ function hitTime(x: number, y: number, dx: number, dy: number, left: number, rig
     }
   }
   return enter <= leave ? enter : Infinity;
+}
+
+export type ApproachCue = 'good' | 'burn' | 'late';
+/** Descent advice from height above the arms and vertical speed, ignoring drag.
+ * burnHeight is where a cueMargin-strength burn reaches the arms at cueArrival.
+ * 'late' means even a full burn now arrives faster than catchSpeed. */
+export function approach(y: number, vy: number): { cue: ApproachCue; burnHeight: number } {
+  const h = Math.max(0, y), v = Math.max(0, -vy), full = C.burnThrust - C.gravity, plan = full * C.cueMargin;
+  const burnHeight = Math.max(0, (v * v - C.cueArrival ** 2) / (2 * plan));
+  const cue = v * v > C.catchSpeed ** 2 + 2 * full * h ? 'late' : v * v > C.cueArrival ** 2 + 2 * plan * h ? 'burn' : 'good';
+  return { cue, burnHeight };
 }
 
 /** UTC calendar day, deliberately independent of locale, timezone and wall clock. */
@@ -262,7 +273,8 @@ export class ArcadeGame {
     this.setBurning(false);
     this.state = 'exploding'; this.phaseTicks = 0;
     this.streak = 0; this.multiplier = 1; this.lives--;
-    this.emit({ type: 'crash', reason, x: this.booster.x, y: this.booster.y });
+    this.emit({ type: 'crash', reason, x: this.booster.x, y: this.booster.y,
+      offset: Math.abs(this.booster.x - this.arms.x), speed: Math.max(0, -this.booster.vy) });
   }
 
   private catch(dx: number) {
